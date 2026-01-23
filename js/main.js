@@ -184,8 +184,11 @@ function cldThumb(publicId) {
 
 // タップ表示：高画質（比率維持、上限だけ付ける）
 function cldView(publicId) {
-  return `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/c_limit,w_1600,q_auto:good,f_auto/${publicId}`;
+  // Safari互換最優先：JPG固定 + 上限1600
+  // fl_progressive で体感改善（段階的に表示）
+  return `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/c_limit,w_1600,q_auto:good,f_jpg,fl_progressive/${publicId}`;
 }
+
 
 // 原寸で開く（保存導線）：変換なし（オリジナル）
 function cldOpenOriginal(publicId) {
