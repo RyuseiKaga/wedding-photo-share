@@ -4,7 +4,12 @@ const API_BASE = "https://wedding-like-api.karo2kai.workers.dev";
 const CLOUD_NAME = "dmei50xsu";
 const UPLOAD_PRESET = "wedding_unsigned";
 const TAG = "wedding_2026";
+
+// 一覧は軽く：サムネ
 const THUMB_SIZE = 360;
+
+// タップで開く高画質：この上限なら十分キレイ＆重すぎない
+const VIEW_MAX_W = 2400;
 
 const gallery = document.getElementById("gallery");
 const fileInput = document.getElementById("fileInput");
@@ -15,9 +20,13 @@ const uploadOverlaySub = document.getElementById("uploadOverlaySub");
 const uploadOverlayProgress = document.getElementById("uploadOverlayProgress");
 const uploadButtonLabel = document.querySelector(".upload-button");
 
-// Long-press preview DOM
-const pressPreview = document.getElementById("pressPreview");
-const pressPreviewImg = document.getElementById("pressPreviewImg");
+// Viewer DOM
+const viewer = document.getElementById("viewer");
+const viewerImg = document.getElementById("viewerImg");
+const viewerOpen = document.getElementById("viewerOpen");
+const viewerCopy = document.getElementById("viewerCopy");
+const viewerClose = document.getElementById("viewerClose");
+const viewerLoading = document.getElementById("viewerLoading");
 
 // Infinite scroll
 let DISPLAY_LIMIT = 30;
@@ -25,18 +34,13 @@ const STEP = 30;
 const SCROLL_THRESHOLD_PX = 200;
 
 // State
-let photos = []; // { id, src, original, likes }
+let photos = []; // { id, thumb, view, open, likes }
 let lastTopId = null;
 const inflightLike = new Map();
 let isLoadingMore = false;
 
 // likes取得済み
 const likesLoaded = new Set();
-
-// ---- Long press config ----
-const LONG_PRESS_MS = 350;
-let pressTimer = null;
-let pressing = false;
 
 console.log("main.js loaded ✅", new Date().toISOString());
 
@@ -77,6 +81,68 @@ function showLoadingInitial() {
   showOverlay("写真を読み込んでいます", "");
 }
 
+// ---------- Viewer helpers ----------
+function openViewer(photo) {
+  if (!viewer || !viewerImg) return;
+
+  // モーダル表示（背景スクロール停止）
+  viewer.hidden = false;
+  document.body.classList.add("no-scroll");
+
+  // ボタンのリンク（原寸で開く＝保存導線）
+  if (viewerOpen) viewerOpen.href = photo.open;
+
+  // 読み込み中表示
+  if (viewerLoading) viewerLoading.hidden = false;
+
+  // いったん空にしてから差し替え
+  viewerImg.src = "";
+  // 高画質（w上限）を先に表示：十分キレイ
+  const high = photo.view;
+
+  // 読み込み完了でローディングを消す
+  const onLoad = () => {
+    if (viewerLoading) viewerLoading.hidden = true;
+    viewerImg.removeEventListener("load", onLoad);
+    viewerImg.removeEventListener("error", onError);
+  };
+  const onError = () => {
+    if (viewerLoading) viewerLoading.hidden = true;
+    viewerImg.removeEventListener("load", onLoad);
+    viewerImg.removeEventListener("error", onError);
+    alert("高画質画像の読み込みに失敗しました。通信状況を確認してください。");
+  };
+
+  viewerImg.addEventListener("load", onLoad);
+  viewerImg.addEventListener("error", onError);
+  viewerImg.src = high;
+}
+
+function closeViewer() {
+  if (!viewer) return;
+  viewer.hidden = true;
+  document.body.classList.remove("no-scroll");
+  if (viewerImg) viewerImg.src = "";
+}
+
+viewerClose?.addEventListener("click", closeViewer);
+viewer?.addEventListener("click", (e) => {
+  // 背景をタップしたら閉じる（シート内は閉じない）
+  if (e.target && (e.target.classList?.contains("viewer-backdrop"))) closeViewer();
+});
+
+viewerCopy?.addEventListener("click", async () => {
+  try {
+    const url = viewerOpen?.href;
+    if (!url) return;
+    await navigator.clipboard.writeText(url);
+    viewerCopy.textContent = "コピーしました";
+    setTimeout(() => (viewerCopy.textContent = "URLコピー"), 1200);
+  } catch {
+    alert("コピーできませんでした（iPhoneの設定/ブラウザによって制限があります）。");
+  }
+});
+
 // ---------- Helpers ----------
 function getCrown(rank) {
   if (rank === 0) return "🥇";
@@ -85,13 +151,19 @@ function getCrown(rank) {
   return "";
 }
 
-// 表示用サムネ（スクエアに切り抜き）
+// 一覧：スクエア切り抜きサムネ（軽い）
 function cldThumb(publicId) {
   return `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/c_fill,w_${THUMB_SIZE},h_${THUMB_SIZE},dpr_auto,q_auto,f_auto/${publicId}`;
 }
 
-// オリジナル（変換なしの元画像）
-function cldOriginal(publicId) {
+// タップ表示：高画質（比率維持、上限だけ付ける）
+function cldView(publicId) {
+  // c_limit で元比率維持しつつ最大幅だけ制限（重すぎ防止）
+  return `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/c_limit,w_${VIEW_MAX_W},dpr_auto,q_auto,f_auto/${publicId}`;
+}
+
+// 原寸で開く（保存導線）：変換なし（オリジナル）
+function cldOpenOriginal(publicId) {
   return `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/${publicId}`;
 }
 
@@ -135,8 +207,9 @@ function normalizeFromListJson(data) {
     .filter(Boolean)
     .map((publicId) => ({
       id: String(publicId),
-      src: cldThumb(String(publicId)),
-      original: cldOriginal(String(publicId)),
+      thumb: cldThumb(String(publicId)),
+      view: cldView(String(publicId)),
+      open: cldOpenOriginal(String(publicId)),
       likes: 0,
     }));
 }
@@ -177,7 +250,7 @@ async function fetchLikesBatch(ids) {
     const t = await res.text().catch(() => "");
     throw new Error(`batch failed: ${res.status} ${t}`);
   }
-  return await res.json(); // { likes: {id: number} }
+  return await res.json();
 }
 
 async function hydrateLikesFor(list) {
@@ -209,47 +282,6 @@ async function likeOnServer(photo) {
   likesLoaded.add(photo.id);
 }
 
-// ---------- Long-press preview ----------
-function showOriginalPreview(url) {
-  if (!pressPreview || !pressPreviewImg) return;
-  pressPreviewImg.src = url;
-  pressPreview.hidden = false;
-}
-
-function hideOriginalPreview() {
-  if (!pressPreview) return;
-  pressPreview.hidden = true;
-  if (pressPreviewImg) pressPreviewImg.src = "";
-}
-
-function attachLongPress(imgEl, originalUrl) {
-  const start = () => {
-    pressing = true;
-    clearTimeout(pressTimer);
-
-    pressTimer = setTimeout(() => {
-      if (!pressing) return;
-      showOriginalPreview(originalUrl);
-    }, LONG_PRESS_MS);
-  };
-
-  const end = () => {
-    pressing = false;
-    clearTimeout(pressTimer);
-    hideOriginalPreview();
-  };
-
-  // Touch (iPhone/Android)
-  imgEl.addEventListener("touchstart", start, { passive: true });
-  imgEl.addEventListener("touchend", end, { passive: true });
-  imgEl.addEventListener("touchcancel", end, { passive: true });
-
-  // Mouse (PC)
-  imgEl.addEventListener("mousedown", start);
-  imgEl.addEventListener("mouseup", end);
-  imgEl.addEventListener("mouseleave", end);
-}
-
 // ---------- Render ----------
 function render() {
   gallery.innerHTML = "";
@@ -266,7 +298,6 @@ function render() {
 
   const sorted = [...photos].sort((a, b) => b.likes - a.likes);
   const visible = sorted.slice(0, DISPLAY_LIMIT);
-
   const currentTopId = visible[0]?.id;
 
   visible.forEach((photo, index) => {
@@ -279,13 +310,13 @@ function render() {
     }
 
     const img = document.createElement("img");
-    img.src = photo.src; // スクエア表示
+    img.src = photo.thumb;
     img.alt = photo.id;
     img.loading = "lazy";
     img.decoding = "async";
 
-    // 長押しでオリジナル表示
-    attachLongPress(img, photo.original);
+    // タップで高画質ビューア
+    img.addEventListener("click", () => openViewer(photo));
 
     const likeBtn = document.createElement("button");
     likeBtn.className = "like";
@@ -295,16 +326,18 @@ function render() {
     likeBtn.disabled = busy;
     likeBtn.style.opacity = busy ? "0.6" : "1";
 
-    likeBtn.addEventListener("click", async () => {
-      if (inflightLike.get(photo.id)) return;
+    likeBtn.addEventListener("click", async (e) => {
+      // ここ重要：likeボタン押下で viewer が開かないように
+      e.stopPropagation();
 
+      if (inflightLike.get(photo.id)) return;
       inflightLike.set(photo.id, true);
       render();
 
       try {
         await likeOnServer(photo);
-      } catch (e) {
-        console.warn("like error ⚠️", e);
+      } catch (err) {
+        console.warn("like error ⚠️", err);
       } finally {
         inflightLike.set(photo.id, false);
         render();
@@ -365,20 +398,19 @@ async function refreshAfterUpload(uploadResults) {
     .filter(Boolean)
     .map((publicId) => ({
       id: String(publicId),
-      src: cldThumb(String(publicId)),
-      original: cldOriginal(String(publicId)),
+      thumb: cldThumb(String(publicId)),
+      view: cldView(String(publicId)),
+      open: cldOpenOriginal(String(publicId)),
       likes: 0,
     }));
 
   photos = uniquePrepend(photos, immediate);
 
-  // 新規分だけ likes取得（基本0）
   await hydrateLikesFor(immediate);
 
   DISPLAY_LIMIT = Math.max(DISPLAY_LIMIT, 30);
   render();
 
-  // list.json 同期（likes全件再取得しない）
   for (let i = 0; i < 6; i++) {
     try {
       await sleep(800);
