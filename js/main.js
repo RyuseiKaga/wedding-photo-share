@@ -9,7 +9,7 @@ const THUMB_SIZE = 600;
 const gallery = document.getElementById("gallery");
 const fileInput = document.getElementById("fileInput");
 
-// Upload overlay DOM
+// Overlay DOM
 const uploadOverlay = document.getElementById("uploadOverlay");
 const uploadOverlaySub = document.getElementById("uploadOverlaySub");
 const uploadOverlayProgress = document.getElementById("uploadOverlayProgress");
@@ -19,55 +19,59 @@ console.log("main.js loaded ✅", new Date().toISOString());
 console.log("fileInput exists?", !!fileInput);
 console.log("uploadOverlay exists?", !!uploadOverlay);
 
-// ---------- 無限スクロール設定 ----------
+// ---------- Infinite scroll settings ----------
 let DISPLAY_LIMIT = 30;
 const STEP = 30;
 const SCROLL_THRESHOLD_PX = 200;
 
-// ---------- state ----------
+// ---------- State ----------
 let photos = []; // { id(public_id), src, likes }
 let lastTopId = null;
 const inflightLike = new Map();
 let isLoadingMore = false;
 
-// ---------- overlay helpers ----------
-function showOverlay(title, sub, progressText) {
+// ---------- Overlay helpers ----------
+function showOverlay(sub, progressText) {
   if (!uploadOverlay) return;
+
   uploadOverlay.hidden = false;
+  uploadOverlay.style.pointerEvents = "auto"; // block interactions
   document.body.classList.add("no-scroll");
 
-  // タイトルはHTML側固定なので、サブ/進捗を用途別に更新
   if (uploadOverlaySub) uploadOverlaySub.textContent = sub || "しばらくお待ちください";
   if (uploadOverlayProgress) uploadOverlayProgress.textContent = progressText || "";
 
-  // アップロード以外でも操作を止める
   uploadButtonLabel?.classList.add("is-disabled");
   if (fileInput) fileInput.disabled = true;
 }
 
 function hideOverlay() {
   if (!uploadOverlay) return;
+
   uploadOverlay.hidden = true;
+  uploadOverlay.style.pointerEvents = "none";
   document.body.classList.remove("no-scroll");
+
   uploadButtonLabel?.classList.remove("is-disabled");
   if (fileInput) fileInput.disabled = false;
 }
 
 function showUploading(totalFiles) {
-  showOverlay("アップロード中…", "しばらくお待ちください", totalFiles ? `0 / ${totalFiles}` : "");
+  showOverlay("しばらくお待ちください", totalFiles ? `0 / ${totalFiles}` : "");
 }
 
 function updateUploading(done, total, fileName) {
-  if (!uploadOverlay) return;
   if (uploadOverlayProgress) uploadOverlayProgress.textContent = `${done} / ${total}`;
-  if (uploadOverlaySub) uploadOverlaySub.textContent = fileName ? `アップロード中：${fileName}` : "しばらくお待ちください";
+  if (uploadOverlaySub) {
+    uploadOverlaySub.textContent = fileName ? `アップロード中：${fileName}` : "しばらくお待ちください";
+  }
 }
 
 function showLoadingInitial() {
-  showOverlay("読み込み中…", "写真を読み込んでいます", "");
+  showOverlay("写真を読み込んでいます", "");
 }
 
-// ---------- helpers ----------
+// ---------- Helpers ----------
 function getCrown(rank) {
   if (rank === 0) return "🥇";
   if (rank === 1) return "🥈";
@@ -181,7 +185,7 @@ async function likeOnServer(photo) {
   photo.likes = Number(data.likes) || photo.likes;
 }
 
-// ---------- render ----------
+// ---------- Render ----------
 function render() {
   gallery.innerHTML = "";
 
@@ -254,7 +258,7 @@ function render() {
   }
 }
 
-// ---------- infinite scroll ----------
+// ---------- Infinite scroll ----------
 function onScroll() {
   if (isLoadingMore) return;
 
@@ -275,7 +279,7 @@ function onScroll() {
 
 window.addEventListener("scroll", onScroll, { passive: true });
 
-// ---------- post-upload refresh ----------
+// ---------- Post-upload refresh ----------
 async function refreshAfterUpload(uploadResults) {
   const immediate = uploadResults
     .map((r) => r?.public_id)
@@ -313,7 +317,7 @@ async function refreshAfterUpload(uploadResults) {
   }
 }
 
-// ---------- upload UI ----------
+// ---------- Upload UI ----------
 fileInput?.addEventListener("change", async (e) => {
   const files = Array.from(e.target.files || []);
   console.log("CHANGE FIRED ✅ files=", files.length);
@@ -342,7 +346,7 @@ fileInput?.addEventListener("change", async (e) => {
   }
 });
 
-// ---------- init（初回ロードもオーバーレイ） ----------
+// ---------- Init (show overlay while loading) ----------
 (async () => {
   showLoadingInitial();
   try {
