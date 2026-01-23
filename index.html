@@ -48,14 +48,15 @@
   </main>
 
   <!-- Overlay（初回ロード中/アップロード中の非活性画面） -->
-  <div id="uploadOverlay" class="overlay" hidden>
-    <div class="overlay-card" role="status" aria-live="polite">
-      <div class="spinner" aria-hidden="true"></div>
-      <div class="overlay-title">読み込み中…</div>
-      <div id="uploadOverlaySub" class="overlay-sub">写真を読み込んでいます</div>
-      <div id="uploadOverlayProgress" class="overlay-progress"></div>
-    </div>
+<div id="uploadOverlay" class="overlay" hidden>
+  <div class="overlay-card" role="status" aria-live="polite">
+    <div class="spinner" aria-hidden="true"></div>
+    <div class="spinner-pulse" aria-hidden="true"></div>
+    <div class="overlay-title">処理中…</div>
+    <div id="uploadOverlaySub" class="overlay-sub">しばらくお待ちください</div>
+    <div id="uploadOverlayProgress" class="overlay-progress"></div>
   </div>
+</div>
 
   <!-- JS（キャッシュ対策で v= を付ける） -->
   <script src="js/main.js?v=105"></script>
