@@ -9,66 +9,75 @@
 
   <title>Wedding Photo Share</title>
 
-  <!-- Favicon（404防止・任意） -->
   <link
     rel="icon"
     href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E%F0%9F%93%B7%3C/text%3E%3C/svg%3E"
   />
 
-  <!-- CSS（キャッシュ対策で v= を付ける） -->
-  <link rel="stylesheet" href="css/style.css?v=10" />
+  <!-- CSS（キャッシュ対策で v= を上げる） -->
+  <link rel="stylesheet" href="css/style.css?v=20" />
 </head>
 <body>
 
-  <!-- ヘッダー -->
   <header class="header">
     <h1>📸 写真をシェアしよう</h1>
-    <p>撮った写真をアップして、いいねで盛り上がろう</p>
+    <p>タップで高画質表示 → 保存できます</p>
   </header>
 
   <main>
-    <!-- アップロード -->
     <section class="upload">
       <label class="upload-button">
         写真をアップロード
-        <input
-          id="fileInput"
-          type="file"
-          accept="image/*"
-          multiple
-          hidden
-        />
+        <input id="fileInput" type="file" accept="image/*" multiple hidden />
       </label>
     </section>
 
-    <!-- ギャラリー（JSで描画） -->
     <section class="gallery" id="gallery"></section>
   </main>
 
-  <!-- =========================
-       全画面オーバーレイ（初回ロード / アップロード中）
-       ========================= -->
+  <!-- 全画面オーバーレイ（初回ロード / アップロード中） -->
   <div id="uploadOverlay" class="overlay" hidden>
     <div class="overlay-card" role="status" aria-live="polite">
       <div class="spinner" aria-hidden="true"></div>
       <div class="spinner-pulse" aria-hidden="true"></div>
-
       <div class="overlay-title">処理中…</div>
       <div id="uploadOverlaySub" class="overlay-sub">しばらくお待ちください</div>
       <div id="uploadOverlayProgress" class="overlay-progress"></div>
     </div>
   </div>
 
-  <!-- =========================
-       長押しプレビュー（オリジナル表示）
-       ========================= -->
-  <div id="pressPreview" class="press-preview" hidden>
-    <div class="press-preview-backdrop"></div>
-    <img id="pressPreviewImg" class="press-preview-img" alt="preview" />
-    <div class="press-preview-hint">長押し中：オリジナル表示</div>
+  <!-- タップで開く：高画質ビューア -->
+  <div id="viewer" class="viewer" hidden>
+    <div class="viewer-backdrop" aria-hidden="true"></div>
+
+    <div class="viewer-sheet" role="dialog" aria-modal="true">
+      <button id="viewerClose" class="viewer-close" type="button" aria-label="閉じる">✕</button>
+
+      <div class="viewer-media">
+        <img id="viewerImg" alt="original preview" />
+        <div id="viewerLoading" class="viewer-loading" hidden>
+          <div class="spinner small" aria-hidden="true"></div>
+          <div class="viewer-loading-text">高画質を読み込み中…</div>
+        </div>
+      </div>
+
+      <div class="viewer-actions">
+        <!-- iPhoneで確実に保存したいので「原寸で開く」推奨 -->
+        <a id="viewerOpen" class="viewer-btn primary" target="_blank" rel="noopener">
+          原寸で開く（保存）
+        </a>
+        <button id="viewerCopy" class="viewer-btn" type="button">
+          URLコピー
+        </button>
+      </div>
+
+      <div class="viewer-note">
+        iPhone：<b>「原寸で開く」→ 画像を長押し → “写真に追加”</b> が確実です。
+      </div>
+    </div>
   </div>
 
-  <!-- JS（キャッシュ対策で v= を付ける） -->
-  <script src="js/main.js?v=10"></script>
+  <!-- JS（キャッシュ対策で v= を上げる） -->
+  <script src="js/main.js?v=20"></script>
 </body>
 </html>
