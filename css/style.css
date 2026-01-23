@@ -1,1 +1,88 @@
+/* Reset */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #fafafa;
+  color: #333;
+}
+
+/* Header */
+.header {
+  text-align: center;
+  padding: 24px 16px 16px;
+}
+
+.header h1 {
+  font-size: 20px;
+  margin-bottom: 4px;
+}
+
+.header p {
+  font-size: 14px;
+  color: #666;
+}
+
+/* Upload */
+.upload {
+  display: flex;
+  justify-content: center;
+  margin: 16px 0 24px;
+}
+
+.upload-button {
+  background: #ff6f91;
+  color: white;
+  padding: 14px 26px;
+  border-radius: 999px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+}
+
+/* Gallery */
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 6px;
+}
+
+/* Photo card */
+.photo-card {
+  position: relative;
+}
+
+.photo-card img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+/* Like button */
+.like {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  background: rgba(0,0,0,0.6);
+  color: white;
+  border: none;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* Tablet */
+@media (min-width: 768px) {
+  .gallery {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
 
