@@ -2,32 +2,46 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+  />
   <title>Wedding Photo Share</title>
 
+  <!-- スタイル -->
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
 
+  <!-- ヘッダー -->
   <header class="header">
     <h1>📸 写真をシェアしよう</h1>
-    <p>撮った写真をアップしてください</p>
+    <p>撮った写真をアップして、いいねで盛り上がろう</p>
   </header>
 
   <main>
-    <!-- Upload（Cloudinary実装は後で） -->
+    <!-- アップロード（Cloudinary実装は後で） -->
     <section class="upload">
       <label class="upload-button">
         写真をアップロード
-        <input id="fileInput" type="file" accept="image/*" multiple hidden />
+        <input
+          id="fileInput"
+          type="file"
+          accept="image/*"
+          multiple
+          hidden
+        />
       </label>
     </section>
 
-    <!-- Gallery -->
-    <section class="gallery" id="gallery"></section>
+    <!-- ランキング / ギャラリー -->
+    <section class="gallery" id="gallery">
+      <!-- JSで写真カードを描画 -->
+    </section>
   </main>
 
-  <!-- キャッシュが強いときは v= を上げる -->
-  <script src="js/main.js?v=1"></script>
+  <!-- JS（キャッシュ対策で v= を付ける） -->
+  <script src="js/main.js?v=2"></script>
 </body>
 </html>
+
