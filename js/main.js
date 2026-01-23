@@ -85,32 +85,33 @@ function showLoadingInitial() {
 function openViewer(photo) {
   if (!viewer || !viewerImg) return;
 
-  // ビューアを開く
   viewer.hidden = false;
   document.body.classList.add("no-scroll");
 
-  // 保存導線（別タブで開く）
   if (viewerOpen) viewerOpen.href = photo.open;
 
-  // まず軽いサムネを即表示（真っ黒防止＆体感改善）
+  // まずサムネを即表示
   viewerImg.src = photo.thumb;
 
-  // ローディング表示
+  // スピナーON
   if (viewerLoading) viewerLoading.hidden = false;
 
-  // ここが「高画質（変換）URL」
   const highUrl = photo.view;
 
-  // ---- プリロード：別の Image で先に読み込む ----
+  // 画像切り替えの“世代”管理（連続タップで古いonloadが残るのを防ぐ）
+  const token = String(Date.now()) + Math.random().toString(16).slice(2);
+  openViewer._token = token;
+
+  // 高画質はプリロードで確定（viewerImgのloadは信用しない）
   const pre = new Image();
 
-  // タイムアウト（無限ぐるぐる防止）
   const TIMEOUT_MS = 12000;
   const timer = setTimeout(() => {
+    if (openViewer._token !== token) return;
     cleanup();
+    // もう読めてる/読めてないに関わらず、無限ぐるぐるを止める
     if (viewerLoading) viewerLoading.hidden = true;
-    console.warn("High-res load timeout:", highUrl);
-    // サムネは表示されているので、最悪でも使える状態になる
+    console.warn("High-res timeout (spinner forced off):", highUrl);
   }, TIMEOUT_MS);
 
   const cleanup = () => {
@@ -119,21 +120,40 @@ function openViewer(photo) {
     pre.onerror = null;
   };
 
+  const forceSpinnerOffIfImageReady = () => {
+    // “表示は出てるのにスピナーが残る”保険
+    // naturalWidth > 0 なら画像デコード完了扱い
+    if (!viewerLoading) return;
+    if (!viewerImg) return;
+
+    if (viewerImg.complete && viewerImg.naturalWidth > 0) {
+      viewerLoading.hidden = true;
+    }
+  };
+
   pre.onload = () => {
+    if (openViewer._token !== token) return;
     cleanup();
-    // 高画質が読み込めた“後”に差し替える
+
+    // 高画質に差し替え
     viewerImg.src = highUrl;
+
+    // ここでスピナーを確実に消す（プリロード完了＝表示可能のはず）
     if (viewerLoading) viewerLoading.hidden = true;
+
+    // それでも残る環境対策：次フレームでも確認
+    requestAnimationFrame(forceSpinnerOffIfImageReady);
+    setTimeout(forceSpinnerOffIfImageReady, 80);
+    setTimeout(forceSpinnerOffIfImageReady, 250);
   };
 
   pre.onerror = () => {
+    if (openViewer._token !== token) return;
     cleanup();
     if (viewerLoading) viewerLoading.hidden = true;
     console.warn("High-res load failed:", highUrl);
-    // 失敗してもサムネ表示は残る（無限ぐるぐるにならない）
   };
 
-  // iPhone向け：デコードを軽く
   pre.decoding = "async";
   pre.src = highUrl;
 }
