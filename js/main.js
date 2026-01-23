@@ -17,6 +17,7 @@ const uploadButtonLabel = document.querySelector(".upload-button");
 
 console.log("main.js loaded ✅", new Date().toISOString());
 console.log("fileInput exists?", !!fileInput);
+console.log("uploadOverlay exists?", !!uploadOverlay);
 
 // ---------- 無限スクロール設定 ----------
 let DISPLAY_LIMIT = 30;
@@ -30,30 +31,40 @@ const inflightLike = new Map();
 let isLoadingMore = false;
 
 // ---------- overlay helpers ----------
-function showUploading(totalFiles) {
+function showOverlay(title, sub, progressText) {
   if (!uploadOverlay) return;
   uploadOverlay.hidden = false;
   document.body.classList.add("no-scroll");
-  if (uploadOverlayProgress) uploadOverlayProgress.textContent = totalFiles ? `0 / ${totalFiles}` : "";
-  if (uploadOverlaySub) uploadOverlaySub.textContent = "しばらくお待ちください";
+
+  // タイトルはHTML側固定なので、サブ/進捗を用途別に更新
+  if (uploadOverlaySub) uploadOverlaySub.textContent = sub || "しばらくお待ちください";
+  if (uploadOverlayProgress) uploadOverlayProgress.textContent = progressText || "";
+
+  // アップロード以外でも操作を止める
   uploadButtonLabel?.classList.add("is-disabled");
   if (fileInput) fileInput.disabled = true;
 }
 
-function updateUploading(done, total, fileName) {
-  if (!uploadOverlay) return;
-  if (uploadOverlayProgress) uploadOverlayProgress.textContent = `${done} / ${total}`;
-  if (uploadOverlaySub) {
-    uploadOverlaySub.textContent = fileName ? `アップロード中：${fileName}` : "しばらくお待ちください";
-  }
-}
-
-function hideUploading() {
+function hideOverlay() {
   if (!uploadOverlay) return;
   uploadOverlay.hidden = true;
   document.body.classList.remove("no-scroll");
   uploadButtonLabel?.classList.remove("is-disabled");
   if (fileInput) fileInput.disabled = false;
+}
+
+function showUploading(totalFiles) {
+  showOverlay("アップロード中…", "しばらくお待ちください", totalFiles ? `0 / ${totalFiles}` : "");
+}
+
+function updateUploading(done, total, fileName) {
+  if (!uploadOverlay) return;
+  if (uploadOverlayProgress) uploadOverlayProgress.textContent = `${done} / ${total}`;
+  if (uploadOverlaySub) uploadOverlaySub.textContent = fileName ? `アップロード中：${fileName}` : "しばらくお待ちください";
+}
+
+function showLoadingInitial() {
+  showOverlay("読み込み中…", "写真を読み込んでいます", "");
 }
 
 // ---------- helpers ----------
@@ -195,9 +206,7 @@ function render() {
 
     if (index === 0) {
       card.classList.add("rank-1");
-      if (lastTopId && lastTopId !== photo.id) {
-        card.classList.add("pop");
-      }
+      if (lastTopId && lastTopId !== photo.id) card.classList.add("pop");
     }
 
     const img = document.createElement("img");
@@ -268,7 +277,6 @@ window.addEventListener("scroll", onScroll, { passive: true });
 
 // ---------- post-upload refresh ----------
 async function refreshAfterUpload(uploadResults) {
-  // 即時にpublic_id分を先頭に追加
   const immediate = uploadResults
     .map((r) => r?.public_id)
     .filter(Boolean)
@@ -281,12 +289,9 @@ async function refreshAfterUpload(uploadResults) {
   photos = uniquePrepend(photos, immediate);
   await hydrateLikes(immediate);
 
-  // 新規が見えるように表示枠を最低限確保
   DISPLAY_LIMIT = Math.max(DISPLAY_LIMIT, 30);
-
   render();
 
-  // list.json反映遅延を吸収：最大10回同期
   for (let i = 0; i < 10; i++) {
     try {
       await sleep(700);
@@ -332,15 +337,23 @@ fileInput?.addEventListener("change", async (e) => {
     console.error(err);
     alert("アップロードに失敗しました。設定（CLOUD_NAME / UPLOAD_PRESET）と通信を確認してください。");
   } finally {
-    hideUploading();
+    hideOverlay();
     fileInput.value = "";
   }
 });
 
-// ---------- init ----------
+// ---------- init（初回ロードもオーバーレイ） ----------
 (async () => {
-  await loadGalleryFromCloudinary();
-  await hydrateLikes();
-  render();
-  console.log("list.json url =", listUrlByTag(TAG));
+  showLoadingInitial();
+  try {
+    await loadGalleryFromCloudinary();
+    await hydrateLikes();
+    render();
+    console.log("list.json url =", listUrlByTag(TAG));
+  } catch (e) {
+    console.warn("init error ⚠️", e);
+    render();
+  } finally {
+    hideOverlay();
+  }
 })();
