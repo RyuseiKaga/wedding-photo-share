@@ -1,12 +1,5 @@
-// ==============================
-// 設定
-// ==============================
 const API_BASE = "https://wedding-like-api.karo2kai.workers.dev";
 
-// ==============================
-// ダミー写真データ
-// ※ id は後で Cloudinary public_id に置き換える前提
-// ==============================
 let photos = [
   { id: "photo1", src: "https://placehold.co/600x600?text=Photo+1", likes: 0 },
   { id: "photo2", src: "https://placehold.co/600x600?text=Photo+2", likes: 0 },
@@ -20,15 +13,12 @@ let photos = [
   { id: "photo10", src: "https://placehold.co/600x600?text=Photo+10", likes: 0 },
 ];
 
-// ==============================
-// DOM
-// ==============================
 const gallery = document.getElementById("gallery");
 let lastTopId = null;
 
-// ==============================
-// ユーティリティ
-// ==============================
+// 写真ごとの「処理中」フラグ（連打・競合防止）
+const inflight = new Map();
+
 function getCrown(rank) {
   if (rank === 0) return "🥇";
   if (rank === 1) return "🥈";
@@ -36,9 +26,6 @@ function getCrown(rank) {
   return "";
 }
 
-// ==============================
-// Workers: like数取得
-// ==============================
 async function hydrateLikes() {
   for (const p of photos) {
     try {
@@ -46,33 +33,22 @@ async function hydrateLikes() {
       const data = await res.json();
       p.likes = Number(data.likes) || 0;
     } catch {
-      // 通信失敗時は現状維持
+      // 通信失敗時は0のまま
     }
   }
 }
 
-// ==============================
-// Workers: like +1
-// ==============================
-async function sendLike(photo) {
+async function likeOnServer(photo) {
   const res = await fetch(`${API_BASE}/like`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id: photo.id }),
   });
-
   const data = await res.json();
-  // 失敗時の形式もあり得るので軽くガード
-  if (typeof data.likes === "number") {
-    photo.likes = data.likes;
-  } else if (typeof data.likes === "string") {
-    photo.likes = Number(data.likes) || photo.likes;
-  }
+  // サーバの値を唯一の真実にする
+  photo.likes = Number(data.likes) || photo.likes;
 }
 
-// ==============================
-// 描画
-// ==============================
 function render() {
   gallery.innerHTML = "";
 
@@ -86,7 +62,6 @@ function render() {
     const card = document.createElement("div");
     card.className = "photo-card";
 
-    // 1位演出
     if (index === 0) {
       card.classList.add("rank-1");
       if (lastTopId && lastTopId !== photo.id) {
@@ -100,21 +75,24 @@ function render() {
 
     const likeBtn = document.createElement("button");
     likeBtn.className = "like";
-    likeBtn.textContent = `${getCrown(index)} ❤️ ${photo.likes}`;
+
+    const busy = inflight.get(photo.id) === true;
+    likeBtn.disabled = busy;
+    likeBtn.style.opacity = busy ? "0.6" : "1";
+    likeBtn.textContent = `${getCrown(index)} ❤️ ${photo.likes}${busy ? "…" : ""}`;
 
     likeBtn.addEventListener("click", async () => {
-      // 楽観的UI：即増やして即ランキング更新
-      photo.likes += 1;
+      if (inflight.get(photo.id)) return; // 念のため
+      inflight.set(photo.id, true);
       render();
 
       try {
-        await sendLike(photo);
-        render();
+        await likeOnServer(photo);
       } catch {
-        // 失敗時は巻き戻す
-        photo.likes -= 1;
+        // 失敗時はそのまま（必要なら alert を入れてもOK）
+      } finally {
+        inflight.set(photo.id, false);
         render();
-        alert("通信に失敗しました。もう一度押してください。");
       }
     });
 
@@ -126,9 +104,6 @@ function render() {
   lastTopId = currentTopId;
 }
 
-// ==============================
-// 初期化
-// ==============================
 (async () => {
   await hydrateLikes();
   render();
