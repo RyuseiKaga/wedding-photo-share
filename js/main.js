@@ -12,11 +12,18 @@ const fileInput = document.getElementById("fileInput");
 console.log("main.js loaded ✅", new Date().toISOString());
 console.log("fileInput exists?", !!fileInput);
 
+// ---------- 無限スクロール設定 ----------
+let DISPLAY_LIMIT = 30;
+const STEP = 30;
+const SCROLL_THRESHOLD_PX = 200;
+
+// ---------- state ----------
 let photos = []; // { id(public_id), src, likes }
 let lastTopId = null;
 const inflightLike = new Map();
+let isLoadingMore = false;
 
-// -------- UI helpers --------
+// ---------- helpers ----------
 function getCrown(rank) {
   if (rank === 0) return "🥇";
   if (rank === 1) return "🥈";
@@ -36,7 +43,22 @@ function uploadEndpoint() {
   return `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`;
 }
 
-// -------- Cloudinary --------
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function mergeKeepLikes(current, next) {
+  const likeMap = new Map(current.map((p) => [p.id, p.likes]));
+  return next.map((p) => ({ ...p, likes: likeMap.get(p.id) ?? p.likes ?? 0 }));
+}
+
+function uniquePrepend(current, toAdd) {
+  const existing = new Set(current.map((p) => p.id));
+  const fresh = toAdd.filter((p) => !existing.has(p.id));
+  return fresh.length ? [...fresh, ...current] : current;
+}
+
+// ---------- Cloudinary ----------
 async function fetchCloudinaryListByTag(tag) {
   const url = listUrlByTag(tag);
   console.log("list fetch ->", url);
@@ -69,7 +91,7 @@ async function loadGalleryFromCloudinary() {
     console.log("list ok ✅ resources=", photos.length);
   } catch (err) {
     console.warn("list error ⚠️", err?.message || err);
-    // 初回404などはあり得るので空のまま
+    // 初回404などはあり得る
     photos = photos || [];
   }
 }
@@ -90,12 +112,12 @@ async function uploadToCloudinary(file) {
   }
   const json = await res.json();
   console.log("upload done ✅ public_id=", json.public_id);
-  return json; // public_id, secure_url...
+  return json;
 }
 
-// -------- Workers likes --------
-async function hydrateLikes(targetPhotos = photos) {
-  for (const p of targetPhotos) {
+// ---------- Workers likes ----------
+async function hydrateLikes(target = photos) {
+  for (const p of target) {
     try {
       const res = await fetch(`${API_BASE}/likes?id=${encodeURIComponent(p.id)}`);
       const data = await res.json();
@@ -116,13 +138,7 @@ async function likeOnServer(photo) {
   photo.likes = Number(data.likes) || photo.likes;
 }
 
-// -------- merge helper (keep likes when reloading list) --------
-function mergeKeepLikes(current, next) {
-  const likeMap = new Map(current.map((p) => [p.id, p.likes]));
-  return next.map((p) => ({ ...p, likes: likeMap.get(p.id) ?? p.likes ?? 0 }));
-}
-
-// -------- render --------
+// ---------- render ----------
 function render() {
   gallery.innerHTML = "";
 
@@ -136,19 +152,24 @@ function render() {
     return;
   }
 
-  const topPhotos = [...photos]
-    .sort((a, b) => b.likes - a.likes)
-    .slice(0, 9);
+  // いいね順で並べる
+  const sorted = [...photos].sort((a, b) => b.likes - a.likes);
 
-  const currentTopId = topPhotos[0]?.id;
+  // 無限スクロール：表示数だけ切る
+  const visible = sorted.slice(0, DISPLAY_LIMIT);
 
-  topPhotos.forEach((photo, index) => {
+  const currentTopId = visible[0]?.id;
+
+  visible.forEach((photo, index) => {
     const card = document.createElement("div");
     card.className = "photo-card";
 
+    // 1位演出（表示上の1位）
     if (index === 0) {
       card.classList.add("rank-1");
-      if (lastTopId && lastTopId !== photo.id) card.classList.add("pop");
+      if (lastTopId && lastTopId !== photo.id) {
+        card.classList.add("pop");
+      }
     }
 
     const img = document.createElement("img");
@@ -185,13 +206,46 @@ function render() {
   });
 
   lastTopId = currentTopId;
+
+  // 読み込み中表示（任意）
+  if (sorted.length > DISPLAY_LIMIT) {
+    const hint = document.createElement("div");
+    hint.style.padding = "14px";
+    hint.style.color = "#666";
+    hint.style.textAlign = "center";
+    hint.textContent = isLoadingMore ? "読み込み中…" : "下にスクロールで続きを表示";
+    gallery.appendChild(hint);
+  }
 }
 
-// -------- post-upload refresh strategy --------
-// 1) まずアップロード結果の public_id を「即」画面に追加
-// 2) その後 list.json を最大10回ポーリングして同期（反映遅延対策）
+// ---------- infinite scroll ----------
+function onScroll() {
+  if (isLoadingMore) return;
+
+  const nearBottom =
+    window.innerHeight + window.scrollY >= document.body.offsetHeight - SCROLL_THRESHOLD_PX;
+
+  if (!nearBottom) return;
+
+  // 追加表示（ほぼ無制限）
+  isLoadingMore = true;
+  DISPLAY_LIMIT += STEP;
+
+  // 描画を優先
+  render();
+
+  // 少し待ってフラグ解除（連続発火防止）
+  setTimeout(() => {
+    isLoadingMore = false;
+    render();
+  }, 200);
+}
+
+window.addEventListener("scroll", onScroll, { passive: true });
+
+// ---------- post-upload refresh ----------
 async function refreshAfterUpload(uploadResults) {
-  // 即時反映（public_id を使って先に追加）
+  // 即時にpublic_id分を先頭に追加
   const immediate = uploadResults
     .map((r) => r?.public_id)
     .filter(Boolean)
@@ -201,67 +255,47 @@ async function refreshAfterUpload(uploadResults) {
       likes: 0,
     }));
 
-  // 既にあるものは重複追加しない
-  const existing = new Set(photos.map((p) => p.id));
-  const toAdd = immediate.filter((p) => !existing.has(p.id));
+  photos = uniquePrepend(photos, immediate);
+  await hydrateLikes(immediate);
 
-  if (toAdd.length > 0) {
-    photos = [...toAdd, ...photos]; // 新しいのを先頭に
-    await hydrateLikes(toAdd); // likesはKVから（ほぼ0）
-    render();
-  }
+  // 新規が見えるように表示枠を最低限確保
+  DISPLAY_LIMIT = Math.max(DISPLAY_LIMIT, 30);
 
-  // list.json の反映遅延を吸収するためにポーリング
+  render();
+
+  // list.json反映遅延を吸収：最大10回同期
   for (let i = 0; i < 10; i++) {
     try {
-      await sleep(700); // 少し待つ
+      await sleep(700);
       const data = await fetchCloudinaryListByTag(TAG);
       const next = normalizeFromListJson(data);
-      const beforeCount = photos.length;
-
       photos = mergeKeepLikes(photos, next);
-      await hydrateLikes(); // 既存含め整合
-
+      await hydrateLikes();
       render();
 
-      // 追加した public_id が list に現れたら終了
       const ids = new Set(photos.map((p) => p.id));
       const allPresent = immediate.every((p) => ids.has(p.id));
       if (allPresent) {
         console.log("synced with list ✅");
         return;
       }
-
-      // 何も変わらないのが続く場合も抜ける（無限回避）
-      if (photos.length === beforeCount && i >= 4) {
-        console.log("list not updated yet, stop retrying");
-        return;
-      }
     } catch (e) {
       console.warn("retry list sync ⚠️", i + 1, e?.message || e);
-      // 途中失敗してもリトライ
     }
   }
 }
 
-function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
-// -------- upload UI --------
+// ---------- upload UI ----------
 fileInput?.addEventListener("change", async (e) => {
   const files = Array.from(e.target.files || []);
   console.log("CHANGE FIRED ✅ files=", files.length);
   if (files.length === 0) return;
 
   try {
-    // 1枚ずつアップロードして結果を集める
     const results = [];
     for (const f of files) {
       results.push(await uploadToCloudinary(f));
     }
-
-    // アップロード後に「確実に反映」させる
     await refreshAfterUpload(results);
   } catch (err) {
     console.error(err);
@@ -271,7 +305,7 @@ fileInput?.addEventListener("change", async (e) => {
   }
 });
 
-// -------- init --------
+// ---------- init ----------
 (async () => {
   await loadGalleryFromCloudinary();
   await hydrateLikes();
