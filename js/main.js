@@ -1,7 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
   const gallery = document.getElementById("gallery");
 
-  // ダミー写真データ（likes付き）
+  // ダミー写真データ（後で Cloudinary + KV に差し替える前提）
   let photos = [
     { id: 1, src: "https://placehold.co/600x600?text=Photo+1", likes: 12 },
     { id: 2, src: "https://placehold.co/600x600?text=Photo+2", likes: 3 },
@@ -15,6 +15,9 @@ document.addEventListener("DOMContentLoaded", () => {
     { id: 10, src: "https://placehold.co/600x600?text=Photo+10", likes: 9 }
   ];
 
+  // 前回の1位ID（入れ替わり検知用）
+  let lastTopId = null;
+
   function getCrown(rank) {
     if (rank === 0) return "🥇";
     if (rank === 1) return "🥈";
@@ -25,14 +28,26 @@ document.addEventListener("DOMContentLoaded", () => {
   function render() {
     gallery.innerHTML = "";
 
-    // likes 降順 → 上位9件
+    // likes降順 → 上位9件
     const topPhotos = [...photos]
       .sort((a, b) => b.likes - a.likes)
       .slice(0, 9);
 
+    const currentTopId = topPhotos[0]?.id;
+
     topPhotos.forEach((photo, index) => {
       const card = document.createElement("div");
       card.className = "photo-card";
+
+      // 1位演出
+      if (index === 0) {
+        card.classList.add("rank-1");
+
+        // 1位が入れ替わった瞬間だけポップ
+        if (lastTopId !== null && lastTopId !== photo.id) {
+          card.classList.add("pop");
+        }
+      }
 
       const img = document.createElement("img");
       img.src = photo.src;
@@ -40,9 +55,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const likeBtn = document.createElement("button");
       likeBtn.className = "like";
-
-      const crown = getCrown(index);
-      likeBtn.textContent = `${crown} ❤️ ${photo.likes}`;
+      likeBtn.textContent = `${getCrown(index)} ❤️ ${photo.likes}`;
 
       likeBtn.addEventListener("click", () => {
         photo.likes += 1;
@@ -53,6 +66,8 @@ document.addEventListener("DOMContentLoaded", () => {
       card.appendChild(likeBtn);
       gallery.appendChild(card);
     });
+
+    lastTopId = currentTopId;
   }
 
   // 初回描画
