@@ -1,9 +1,7 @@
 /* =========================
    Base
    ========================= */
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 html, body {
   margin: 0;
@@ -14,10 +12,7 @@ html, body {
   color: #222;
 }
 
-img {
-  max-width: 100%;
-  display: block;
-}
+img { max-width: 100%; display: block; }
 
 button {
   font-family: inherit;
@@ -99,7 +94,9 @@ button {
 .photo-card img {
   width: 100%;
   aspect-ratio: 1 / 1;
-  object-fit: cover; /* 表示はスクエアでOK */
+  object-fit: cover; /* 一覧はスクエアでOK */
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 /* Like button */
@@ -121,9 +118,7 @@ button {
               0 10px 28px rgba(255, 215, 0, 0.45);
 }
 
-.photo-card.pop {
-  animation: pop 0.4s ease;
-}
+.photo-card.pop { animation: pop 0.4s ease; }
 
 @keyframes pop {
   0%   { transform: scale(0.96); }
@@ -133,7 +128,6 @@ button {
 
 /* =========================
    Fullscreen Overlay
-   初回ロード / アップロード中
    ========================= */
 body.no-scroll {
   overflow: hidden;
@@ -153,7 +147,6 @@ body.no-scroll {
   padding: 16px;
 }
 
-/* 中央カード */
 .overlay-card {
   width: min(380px, 92vw);
   background: rgba(255,255,255,0.92);
@@ -165,14 +158,12 @@ body.no-scroll {
   overflow: hidden;
 }
 
-/* 光がゆらぐ演出 */
 .overlay-card::before {
   content: "";
   position: absolute;
   inset: -40% -40% auto -40%;
   height: 140%;
-  background: radial-gradient(
-    circle at 30% 30%,
+  background: radial-gradient(circle at 30% 30%,
     rgba(255,255,255,0.9),
     rgba(255,255,255,0)
   );
@@ -206,13 +197,14 @@ body.no-scroll {
   font-weight: 700;
 }
 
-/* スピナー（2重リング＋パルス） */
+/* spinner */
 .spinner {
   width: 56px;
   height: 56px;
   margin: 4px auto 10px;
   position: relative;
 }
+.spinner.small { width: 40px; height: 40px; margin: 0; }
 
 .spinner::before,
 .spinner::after {
@@ -228,9 +220,7 @@ body.no-scroll {
   animation: spin 0.85s linear infinite;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .spinner-pulse {
   width: 10px;
@@ -247,45 +237,101 @@ body.no-scroll {
 }
 
 /* =========================
-   Long-press original preview
+   Viewer (tap to open original)
    ========================= */
-.press-preview[hidden] { display: none; }
+.viewer[hidden] { display: none; }
 
-.press-preview {
+.viewer {
   position: fixed;
   inset: 0;
   z-index: 100000;
   display: grid;
   place-items: center;
-  pointer-events: none; /* 表示中も操作は通さない */
+  padding: 14px;
 }
 
-.press-preview-backdrop {
+.viewer-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(0,0,0,0.65);
+  background: rgba(0,0,0,0.72);
   backdrop-filter: blur(6px);
 }
 
-.press-preview-img {
+.viewer-sheet {
   position: relative;
-  max-width: 92vw;
-  max-height: 82vh;
-  width: auto;
-  height: auto;
-  border-radius: 14px;
-  box-shadow: 0 18px 50px rgba(0,0,0,0.45);
-  object-fit: contain;
-  background: rgba(255,255,255,0.06);
+  width: min(560px, 96vw);
+  background: rgba(255,255,255,0.96);
+  border-radius: 18px;
+  box-shadow: 0 18px 60px rgba(0,0,0,0.45);
+  overflow: hidden;
 }
 
-.press-preview-hint {
-  position: relative;
-  margin-top: 10px;
-  padding: 8px 12px;
+.viewer-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 38px;
+  height: 38px;
   border-radius: 999px;
-  background: rgba(255,255,255,0.14);
-  color: rgba(255,255,255,0.95);
+  background: rgba(0,0,0,0.08);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.viewer-media {
+  position: relative;
+  background: rgba(0,0,0,0.03);
+}
+
+.viewer-media img {
+  width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+  display: block;
+}
+
+.viewer-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  background: rgba(255,255,255,0.65);
+}
+
+.viewer-loading-text {
   font-size: 13px;
+  color: #333;
   font-weight: 700;
+}
+
+.viewer-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 12px;
+}
+
+.viewer-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  background: rgba(0,0,0,0.06);
+  color: #111;
+  border-radius: 12px;
+  padding: 12px 10px;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.viewer-btn.primary {
+  background: linear-gradient(135deg, #ff8fb1, #ff5f8f);
+  color: #fff;
+}
+
+.viewer-note {
+  padding: 0 12px 14px;
+  font-size: 12px;
+  color: #666;
 }
