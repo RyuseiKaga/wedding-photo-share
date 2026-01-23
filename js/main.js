@@ -85,37 +85,63 @@ function showLoadingInitial() {
 function openViewer(photo) {
   if (!viewer || !viewerImg) return;
 
-  // モーダル表示（背景スクロール停止）
   viewer.hidden = false;
   document.body.classList.add("no-scroll");
 
-  // ボタンのリンク（原寸で開く＝保存導線）
+  // 保存導線
   if (viewerOpen) viewerOpen.href = photo.open;
 
-  // 読み込み中表示
+  // まず軽いサムネを即表示（体感改善）
+  viewerImg.src = photo.thumb;
+
+  // ローディング表示
   if (viewerLoading) viewerLoading.hidden = false;
 
-  // いったん空にしてから差し替え
-  viewerImg.src = "";
-  // 高画質（w上限）を先に表示：十分キレイ
   const high = photo.view;
 
-  // 読み込み完了でローディングを消す
-  const onLoad = () => {
-    if (viewerLoading) viewerLoading.hidden = true;
-    viewerImg.removeEventListener("load", onLoad);
-    viewerImg.removeEventListener("error", onError);
-  };
-  const onError = () => {
-    if (viewerLoading) viewerLoading.hidden = true;
-    viewerImg.removeEventListener("load", onLoad);
-    viewerImg.removeEventListener("error", onError);
-    alert("高画質画像の読み込みに失敗しました。通信状況を確認してください。");
+  // 高画質は別Imageでプリロード（これが重要）
+  const pre = new Image();
+
+  const cleanup = () => {
+    pre.onload = null;
+    pre.onerror = null;
   };
 
-  viewerImg.addEventListener("load", onLoad);
-  viewerImg.addEventListener("error", onError);
-  viewerImg.src = high;
+  const fail = () => {
+    cleanup();
+    if (viewerLoading) viewerLoading.hidden = true;
+
+    // iPhoneだと alert が出ない/遅延することがあるので、まずはボタンで逃がす
+    console.warn("High-res load failed:", high);
+    // ここは任意：失敗しても viewer は開いたまま（サムネは見えている）
+    // 必要ならメッセージ要素を出す実装もできます
+  };
+
+  pre.onload = () => {
+    cleanup();
+    // 読み込みが終わったら差し替え
+    viewerImg.src = high;
+    if (viewerLoading) viewerLoading.hidden = true;
+  };
+
+  pre.onerror = fail;
+
+  // タイムアウト（無限ぐるぐる防止）
+  const timer = setTimeout(() => {
+    // まだ読み込みが終わっていないなら中断扱い
+    cleanup();
+    if (viewerLoading) viewerLoading.hidden = true;
+    console.warn("High-res load timeout:", high);
+  }, 12000);
+
+  // onload / onerror のどちらでも timer を止める
+  const stopTimer = () => clearTimeout(timer);
+  pre.addEventListener("load", stopTimer, { once: true });
+  pre.addEventListener("error", stopTimer, { once: true });
+
+  pre.decoding = "async";
+  pre.loading = "eager";
+  pre.src = high;
 }
 
 function closeViewer() {
