@@ -47,8 +47,18 @@
     </section>
   </main>
 
+  <!-- Upload Overlay（アップロード中の非活性画面） -->
+  <div id="uploadOverlay" class="overlay" hidden>
+    <div class="overlay-card" role="status" aria-live="polite">
+      <div class="spinner" aria-hidden="true"></div>
+      <div class="overlay-title">アップロード中…</div>
+      <div id="uploadOverlaySub" class="overlay-sub">しばらくお待ちください</div>
+      <div id="uploadOverlayProgress" class="overlay-progress"></div>
+    </div>
+  </div>
+
   <!-- JS
        ※ GitHub Pages のキャッシュ対策で v= を必ず上げる -->
-  <script src="js/main.js?v=101"></script>
+  <script src="js/main.js?v=103"></script>
 </body>
 </html>
