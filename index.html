@@ -6,9 +6,16 @@
     name="viewport"
     content="width=device-width, initial-scale=1.0, viewport-fit=cover"
   />
+
   <title>Wedding Photo Share</title>
 
-  <!-- スタイル -->
+  <!-- Favicon（404防止・任意） -->
+  <link
+    rel="icon"
+    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E%F0%9F%93%B7%3C/text%3E%3C/svg%3E"
+  />
+
+  <!-- CSS -->
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -20,7 +27,7 @@
   </header>
 
   <main>
-    <!-- アップロード（Cloudinary実装は後で） -->
+    <!-- アップロード -->
     <section class="upload">
       <label class="upload-button">
         写真をアップロード
@@ -34,14 +41,14 @@
       </label>
     </section>
 
-    <!-- ランキング / ギャラリー -->
+    <!-- ギャラリー（JSで描画） -->
     <section class="gallery" id="gallery">
-      <!-- JSで写真カードを描画 -->
+      <!-- 写真カードは main.js が挿入 -->
     </section>
   </main>
 
-  <!-- JS（キャッシュ対策で v= を付ける） -->
-  <script src="js/main.js?v=2"></script>
+  <!-- JS
+       ※ GitHub Pages のキャッシュ対策で v= を必ず上げる -->
+  <script src="js/main.js?v=101"></script>
 </body>
 </html>
-
