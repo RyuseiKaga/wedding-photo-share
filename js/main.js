@@ -9,11 +9,15 @@ const THUMB_SIZE = 360;
 const gallery = document.getElementById("gallery");
 const fileInput = document.getElementById("fileInput");
 
-// Overlay DOM
+// Upload overlay DOM
 const uploadOverlay = document.getElementById("uploadOverlay");
 const uploadOverlaySub = document.getElementById("uploadOverlaySub");
 const uploadOverlayProgress = document.getElementById("uploadOverlayProgress");
 const uploadButtonLabel = document.querySelector(".upload-button");
+
+// Long-press preview DOM
+const pressPreview = document.getElementById("pressPreview");
+const pressPreviewImg = document.getElementById("pressPreviewImg");
 
 // Infinite scroll
 let DISPLAY_LIMIT = 30;
@@ -21,13 +25,20 @@ const STEP = 30;
 const SCROLL_THRESHOLD_PX = 200;
 
 // State
-let photos = []; // { id, src, likes }
+let photos = []; // { id, src, original, likes }
 let lastTopId = null;
 const inflightLike = new Map();
 let isLoadingMore = false;
 
-// likes取得済み管理
+// likes取得済み
 const likesLoaded = new Set();
+
+// ---- Long press config ----
+const LONG_PRESS_MS = 350;
+let pressTimer = null;
+let pressing = false;
+
+console.log("main.js loaded ✅", new Date().toISOString());
 
 // ---------- Overlay helpers ----------
 function showOverlay(sub, progressText) {
@@ -74,8 +85,14 @@ function getCrown(rank) {
   return "";
 }
 
+// 表示用サムネ（スクエアに切り抜き）
 function cldThumb(publicId) {
   return `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/c_fill,w_${THUMB_SIZE},h_${THUMB_SIZE},dpr_auto,q_auto,f_auto/${publicId}`;
+}
+
+// オリジナル（変換なしの元画像）
+function cldOriginal(publicId) {
+  return `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/${publicId}`;
 }
 
 function listUrlByTag(tag) {
@@ -119,6 +136,7 @@ function normalizeFromListJson(data) {
     .map((publicId) => ({
       id: String(publicId),
       src: cldThumb(String(publicId)),
+      original: cldOriginal(String(publicId)),
       likes: 0,
     }));
 }
@@ -191,6 +209,47 @@ async function likeOnServer(photo) {
   likesLoaded.add(photo.id);
 }
 
+// ---------- Long-press preview ----------
+function showOriginalPreview(url) {
+  if (!pressPreview || !pressPreviewImg) return;
+  pressPreviewImg.src = url;
+  pressPreview.hidden = false;
+}
+
+function hideOriginalPreview() {
+  if (!pressPreview) return;
+  pressPreview.hidden = true;
+  if (pressPreviewImg) pressPreviewImg.src = "";
+}
+
+function attachLongPress(imgEl, originalUrl) {
+  const start = () => {
+    pressing = true;
+    clearTimeout(pressTimer);
+
+    pressTimer = setTimeout(() => {
+      if (!pressing) return;
+      showOriginalPreview(originalUrl);
+    }, LONG_PRESS_MS);
+  };
+
+  const end = () => {
+    pressing = false;
+    clearTimeout(pressTimer);
+    hideOriginalPreview();
+  };
+
+  // Touch (iPhone/Android)
+  imgEl.addEventListener("touchstart", start, { passive: true });
+  imgEl.addEventListener("touchend", end, { passive: true });
+  imgEl.addEventListener("touchcancel", end, { passive: true });
+
+  // Mouse (PC)
+  imgEl.addEventListener("mousedown", start);
+  imgEl.addEventListener("mouseup", end);
+  imgEl.addEventListener("mouseleave", end);
+}
+
 // ---------- Render ----------
 function render() {
   gallery.innerHTML = "";
@@ -220,10 +279,13 @@ function render() {
     }
 
     const img = document.createElement("img");
-    img.src = photo.src;
+    img.src = photo.src; // スクエア表示
     img.alt = photo.id;
     img.loading = "lazy";
     img.decoding = "async";
+
+    // 長押しでオリジナル表示
+    attachLongPress(img, photo.original);
 
     const likeBtn = document.createElement("button");
     likeBtn.className = "like";
@@ -282,7 +344,6 @@ async function onScroll() {
 
   render();
 
-  // 新しく見える分だけ batch で likes 取得
   const sorted = [...photos].sort((a, b) => b.likes - a.likes);
   const newlyVisible = sorted.slice(prevLimit, DISPLAY_LIMIT);
   await hydrateLikesFor(newlyVisible);
@@ -305,12 +366,13 @@ async function refreshAfterUpload(uploadResults) {
     .map((publicId) => ({
       id: String(publicId),
       src: cldThumb(String(publicId)),
+      original: cldOriginal(String(publicId)),
       likes: 0,
     }));
 
   photos = uniquePrepend(photos, immediate);
 
-  // 新規分だけ batch で likes 取得（基本0）
+  // 新規分だけ likes取得（基本0）
   await hydrateLikesFor(immediate);
 
   DISPLAY_LIMIT = Math.max(DISPLAY_LIMIT, 30);
@@ -369,7 +431,6 @@ fileInput?.addEventListener("change", async (e) => {
     await loadGalleryFromCloudinary();
     render();
 
-    // 初回は表示分だけ likes を batch 取得
     const sorted = [...photos].sort((a, b) => b.likes - a.likes);
     const firstVisible = sorted.slice(0, DISPLAY_LIMIT);
     await hydrateLikesFor(firstVisible);
