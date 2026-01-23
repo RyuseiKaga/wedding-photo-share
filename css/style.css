@@ -43,6 +43,7 @@ body {
   font-weight: 600;
   cursor: pointer;
   box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+  user-select: none;
 }
 
 /* Gallery */
@@ -79,13 +80,6 @@ body {
   cursor: pointer;
 }
 
-/* Tablet */
-@media (min-width: 768px) {
-  .gallery {
-    grid-template-columns: repeat(5, 1fr);
-  }
-}
-
 /* 1位演出 */
 .photo-card.rank-1 img {
   border: 3px solid gold;
@@ -100,19 +94,18 @@ body {
 
 /* 1位になった瞬間のアニメーション */
 @keyframes pop {
-  0% {
-    transform: scale(0.95);
-  }
-  50% {
-    transform: scale(1.05);
-  }
-  100% {
-    transform: scale(1);
-  }
+  0% { transform: scale(0.95); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
 }
 
 .photo-card.rank-1.pop {
   animation: pop 0.4s ease-out;
 }
 
-
+/* Tablet */
+@media (min-width: 768px) {
+  .gallery {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
