@@ -9,6 +9,12 @@ const THUMB_SIZE = 600;
 const gallery = document.getElementById("gallery");
 const fileInput = document.getElementById("fileInput");
 
+// Upload overlay DOM
+const uploadOverlay = document.getElementById("uploadOverlay");
+const uploadOverlaySub = document.getElementById("uploadOverlaySub");
+const uploadOverlayProgress = document.getElementById("uploadOverlayProgress");
+const uploadButtonLabel = document.querySelector(".upload-button");
+
 console.log("main.js loaded ✅", new Date().toISOString());
 console.log("fileInput exists?", !!fileInput);
 
@@ -22,6 +28,33 @@ let photos = []; // { id(public_id), src, likes }
 let lastTopId = null;
 const inflightLike = new Map();
 let isLoadingMore = false;
+
+// ---------- overlay helpers ----------
+function showUploading(totalFiles) {
+  if (!uploadOverlay) return;
+  uploadOverlay.hidden = false;
+  document.body.classList.add("no-scroll");
+  if (uploadOverlayProgress) uploadOverlayProgress.textContent = totalFiles ? `0 / ${totalFiles}` : "";
+  if (uploadOverlaySub) uploadOverlaySub.textContent = "しばらくお待ちください";
+  uploadButtonLabel?.classList.add("is-disabled");
+  if (fileInput) fileInput.disabled = true;
+}
+
+function updateUploading(done, total, fileName) {
+  if (!uploadOverlay) return;
+  if (uploadOverlayProgress) uploadOverlayProgress.textContent = `${done} / ${total}`;
+  if (uploadOverlaySub) {
+    uploadOverlaySub.textContent = fileName ? `アップロード中：${fileName}` : "しばらくお待ちください";
+  }
+}
+
+function hideUploading() {
+  if (!uploadOverlay) return;
+  uploadOverlay.hidden = true;
+  document.body.classList.remove("no-scroll");
+  uploadButtonLabel?.classList.remove("is-disabled");
+  if (fileInput) fileInput.disabled = false;
+}
 
 // ---------- helpers ----------
 function getCrown(rank) {
@@ -91,7 +124,6 @@ async function loadGalleryFromCloudinary() {
     console.log("list ok ✅ resources=", photos.length);
   } catch (err) {
     console.warn("list error ⚠️", err?.message || err);
-    // 初回404などはあり得る
     photos = photos || [];
   }
 }
@@ -152,10 +184,7 @@ function render() {
     return;
   }
 
-  // いいね順で並べる
   const sorted = [...photos].sort((a, b) => b.likes - a.likes);
-
-  // 無限スクロール：表示数だけ切る
   const visible = sorted.slice(0, DISPLAY_LIMIT);
 
   const currentTopId = visible[0]?.id;
@@ -164,7 +193,6 @@ function render() {
     const card = document.createElement("div");
     card.className = "photo-card";
 
-    // 1位演出（表示上の1位）
     if (index === 0) {
       card.classList.add("rank-1");
       if (lastTopId && lastTopId !== photo.id) {
@@ -207,7 +235,6 @@ function render() {
 
   lastTopId = currentTopId;
 
-  // 読み込み中表示（任意）
   if (sorted.length > DISPLAY_LIMIT) {
     const hint = document.createElement("div");
     hint.style.padding = "14px";
@@ -227,14 +254,10 @@ function onScroll() {
 
   if (!nearBottom) return;
 
-  // 追加表示（ほぼ無制限）
   isLoadingMore = true;
   DISPLAY_LIMIT += STEP;
-
-  // 描画を優先
   render();
 
-  // 少し待ってフラグ解除（連続発火防止）
   setTimeout(() => {
     isLoadingMore = false;
     render();
@@ -291,16 +314,25 @@ fileInput?.addEventListener("change", async (e) => {
   console.log("CHANGE FIRED ✅ files=", files.length);
   if (files.length === 0) return;
 
+  showUploading(files.length);
+
   try {
     const results = [];
+    let done = 0;
+
     for (const f of files) {
+      updateUploading(done, files.length, f.name);
       results.push(await uploadToCloudinary(f));
+      done += 1;
+      updateUploading(done, files.length, f.name);
     }
+
     await refreshAfterUpload(results);
   } catch (err) {
     console.error(err);
     alert("アップロードに失敗しました。設定（CLOUD_NAME / UPLOAD_PRESET）と通信を確認してください。");
   } finally {
+    hideUploading();
     fileInput.value = "";
   }
 });
