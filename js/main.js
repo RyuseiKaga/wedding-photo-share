@@ -85,64 +85,59 @@ function showLoadingInitial() {
 function openViewer(photo) {
   if (!viewer || !viewerImg) return;
 
+  // ビューアを開く
   viewer.hidden = false;
   document.body.classList.add("no-scroll");
 
-  // 保存導線
+  // 保存導線（別タブで開く）
   if (viewerOpen) viewerOpen.href = photo.open;
 
-  // まず軽いサムネを即表示（体感改善）
+  // まず軽いサムネを即表示（真っ黒防止＆体感改善）
   viewerImg.src = photo.thumb;
 
   // ローディング表示
   if (viewerLoading) viewerLoading.hidden = false;
 
-  const high = photo.view;
+  // ここが「高画質（変換）URL」
+  const highUrl = photo.view;
 
-  // 高画質は別Imageでプリロード（これが重要）
+  // ---- プリロード：別の Image で先に読み込む ----
   const pre = new Image();
 
+  // タイムアウト（無限ぐるぐる防止）
+  const TIMEOUT_MS = 12000;
+  const timer = setTimeout(() => {
+    cleanup();
+    if (viewerLoading) viewerLoading.hidden = true;
+    console.warn("High-res load timeout:", highUrl);
+    // サムネは表示されているので、最悪でも使える状態になる
+  }, TIMEOUT_MS);
+
   const cleanup = () => {
+    clearTimeout(timer);
     pre.onload = null;
     pre.onerror = null;
   };
 
-  const fail = () => {
-    cleanup();
-    if (viewerLoading) viewerLoading.hidden = true;
-
-    // iPhoneだと alert が出ない/遅延することがあるので、まずはボタンで逃がす
-    console.warn("High-res load failed:", high);
-    // ここは任意：失敗しても viewer は開いたまま（サムネは見えている）
-    // 必要ならメッセージ要素を出す実装もできます
-  };
-
   pre.onload = () => {
     cleanup();
-    // 読み込みが終わったら差し替え
-    viewerImg.src = high;
+    // 高画質が読み込めた“後”に差し替える
+    viewerImg.src = highUrl;
     if (viewerLoading) viewerLoading.hidden = true;
   };
 
-  pre.onerror = fail;
-
-  // タイムアウト（無限ぐるぐる防止）
-  const timer = setTimeout(() => {
-    // まだ読み込みが終わっていないなら中断扱い
+  pre.onerror = () => {
     cleanup();
     if (viewerLoading) viewerLoading.hidden = true;
-    console.warn("High-res load timeout:", high);
-  }, 12000);
+    console.warn("High-res load failed:", highUrl);
+    // 失敗してもサムネ表示は残る（無限ぐるぐるにならない）
+  };
 
-  // onload / onerror のどちらでも timer を止める
-  const stopTimer = () => clearTimeout(timer);
-  pre.addEventListener("load", stopTimer, { once: true });
-  pre.addEventListener("error", stopTimer, { once: true });
-
+  // iPhone向け：デコードを軽く
   pre.decoding = "async";
-  pre.loading = "eager";
-  pre.src = high;
+  pre.src = highUrl;
 }
+
 
 function closeViewer() {
   if (!viewer) return;
