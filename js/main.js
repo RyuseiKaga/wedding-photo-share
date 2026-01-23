@@ -184,8 +184,7 @@ function cldThumb(publicId) {
 
 // タップ表示：高画質（比率維持、上限だけ付ける）
 function cldView(publicId) {
-  // c_limit で元比率維持しつつ最大幅だけ制限（重すぎ防止）
-  return `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/c_limit,w_${VIEW_MAX_W},dpr_auto,q_auto,f_auto/${publicId}`;
+  return `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/c_limit,w_1600,q_auto:good,f_auto/${publicId}`;
 }
 
 // 原寸で開く（保存導線）：変換なし（オリジナル）
