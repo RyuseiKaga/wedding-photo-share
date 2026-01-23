@@ -1,34 +1,60 @@
 document.addEventListener("DOMContentLoaded", () => {
   const gallery = document.getElementById("gallery");
 
-  // ダミー画像（正方形）
-  const dummyPhotos = [
-    "https://placehold.co/600x600?text=Photo+1",
-    "https://placehold.co/600x600?text=Photo+2",
-    "https://placehold.co/600x600?text=Photo+3",
-    "https://placehold.co/600x600?text=Photo+4",
-    "https://placehold.co/600x600?text=Photo+5",
-    "https://placehold.co/600x600?text=Photo+6",
-    "https://placehold.co/600x600?text=Photo+7",
-    "https://placehold.co/600x600?text=Photo+8",
-    "https://placehold.co/600x600?text=Photo+9"
+  // ダミー写真データ（likes付き）
+  let photos = [
+    { id: 1, src: "https://placehold.co/600x600?text=Photo+1", likes: 12 },
+    { id: 2, src: "https://placehold.co/600x600?text=Photo+2", likes: 3 },
+    { id: 3, src: "https://placehold.co/600x600?text=Photo+3", likes: 25 },
+    { id: 4, src: "https://placehold.co/600x600?text=Photo+4", likes: 8 },
+    { id: 5, src: "https://placehold.co/600x600?text=Photo+5", likes: 17 },
+    { id: 6, src: "https://placehold.co/600x600?text=Photo+6", likes: 1 },
+    { id: 7, src: "https://placehold.co/600x600?text=Photo+7", likes: 30 },
+    { id: 8, src: "https://placehold.co/600x600?text=Photo+8", likes: 6 },
+    { id: 9, src: "https://placehold.co/600x600?text=Photo+9", likes: 14 },
+    { id: 10, src: "https://placehold.co/600x600?text=Photo+10", likes: 9 }
   ];
 
-  dummyPhotos.forEach((src, index) => {
-    const card = document.createElement("div");
-    card.className = "photo-card";
+  function getCrown(rank) {
+    if (rank === 0) return "🥇";
+    if (rank === 1) return "🥈";
+    if (rank === 2) return "🥉";
+    return "";
+  }
 
-    const img = document.createElement("img");
-    img.src = src;
-    img.alt = `photo ${index + 1}`;
+  function render() {
+    gallery.innerHTML = "";
 
-    const likeBtn = document.createElement("button");
-    likeBtn.className = "like";
-    likeBtn.textContent = "❤️ 0";
+    // likes 降順 → 上位9件
+    const topPhotos = [...photos]
+      .sort((a, b) => b.likes - a.likes)
+      .slice(0, 9);
 
-    card.appendChild(img);
-    card.appendChild(likeBtn);
-    gallery.appendChild(card);
-  });
+    topPhotos.forEach((photo, index) => {
+      const card = document.createElement("div");
+      card.className = "photo-card";
+
+      const img = document.createElement("img");
+      img.src = photo.src;
+      img.alt = `photo ${photo.id}`;
+
+      const likeBtn = document.createElement("button");
+      likeBtn.className = "like";
+
+      const crown = getCrown(index);
+      likeBtn.textContent = `${crown} ❤️ ${photo.likes}`;
+
+      likeBtn.addEventListener("click", () => {
+        photo.likes += 1;
+        render(); // 即ランキング更新
+      });
+
+      card.appendChild(img);
+      card.appendChild(likeBtn);
+      gallery.appendChild(card);
+    });
+  }
+
+  // 初回描画
+  render();
 });
-
