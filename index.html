@@ -15,27 +15,19 @@
   </header>
 
   <main>
-    <!-- Upload -->
+    <!-- Upload（Cloudinary実装は後で） -->
     <section class="upload">
       <label class="upload-button">
         写真をアップロード
-        <input type="file" accept="image/*" multiple hidden />
+        <input id="fileInput" type="file" accept="image/*" multiple hidden />
       </label>
     </section>
 
     <!-- Gallery -->
-    <section class="gallery" id="gallery">
-      <!-- 写真カードはJSで追加 -->
-      <!--
-      <div class="photo-card">
-        <img src="https://placehold.co/300x300" />
-        <button class="like">❤️ 12</button>
-      </div>
-      -->
-    </section>
+    <section class="gallery" id="gallery"></section>
   </main>
 
-  <script src="js/main.js"></script>
+  <!-- キャッシュが強いときは v= を上げる -->
+  <script src="js/main.js?v=1"></script>
 </body>
 </html>
-
