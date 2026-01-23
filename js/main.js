@@ -5,7 +5,7 @@ const API_BASE = "https://wedding-like-api.karo2kai.workers.dev";
 
 // ==============================
 // ダミー写真データ
-// ※ id は後で Cloudinary public_id に置き換える
+// ※ id は後で Cloudinary public_id に置き換える前提
 // ==============================
 let photos = [
   { id: "photo1", src: "https://placehold.co/600x600?text=Photo+1", likes: 0 },
@@ -37,24 +37,22 @@ function getCrown(rank) {
 }
 
 // ==============================
-// Workers から like 数を取得
+// Workers: like数取得
 // ==============================
 async function hydrateLikes() {
   for (const p of photos) {
     try {
-      const res = await fetch(
-        `${API_BASE}/likes?id=${encodeURIComponent(p.id)}`
-      );
+      const res = await fetch(`${API_BASE}/likes?id=${encodeURIComponent(p.id)}`);
       const data = await res.json();
       p.likes = Number(data.likes) || 0;
     } catch {
-      // 通信失敗時は 0 のまま
+      // 通信失敗時は現状維持
     }
   }
 }
 
 // ==============================
-// Workers に like を送信
+// Workers: like +1
 // ==============================
 async function sendLike(photo) {
   const res = await fetch(`${API_BASE}/like`, {
@@ -62,8 +60,14 @@ async function sendLike(photo) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id: photo.id }),
   });
+
   const data = await res.json();
-  photo.likes = data.likes;
+  // 失敗時の形式もあり得るので軽くガード
+  if (typeof data.likes === "number") {
+    photo.likes = data.likes;
+  } else if (typeof data.likes === "string") {
+    photo.likes = Number(data.likes) || photo.likes;
+  }
 }
 
 // ==============================
@@ -82,10 +86,9 @@ function render() {
     const card = document.createElement("div");
     card.className = "photo-card";
 
-    // 🥇 1位演出
+    // 1位演出
     if (index === 0) {
       card.classList.add("rank-1");
-
       if (lastTopId && lastTopId !== photo.id) {
         card.classList.add("pop");
       }
@@ -100,7 +103,7 @@ function render() {
     likeBtn.textContent = `${getCrown(index)} ❤️ ${photo.likes}`;
 
     likeBtn.addEventListener("click", async () => {
-      // 楽観的UI（即反映）
+      // 楽観的UI：即増やして即ランキング更新
       photo.likes += 1;
       render();
 
@@ -108,7 +111,7 @@ function render() {
         await sendLike(photo);
         render();
       } catch {
-        // 失敗したら巻き戻し
+        // 失敗時は巻き戻す
         photo.likes -= 1;
         render();
         alert("通信に失敗しました。もう一度押してください。");
