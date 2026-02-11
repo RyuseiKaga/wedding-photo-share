@@ -4,7 +4,7 @@
 
 const CLOUD_NAME = "dmei50xsu";   // ←あなたのCloud name
 const TAG_NAME = "wedding_2026";  // 使っているタグ
-const LIKE_API = "https://YOUR-WORKER.workers.dev"; // Worker URL
+const LIKE_API = "https://wedding-like-api.karo2kai.workers.dev";// Worker URL
 
 /* =========================
    STATE
@@ -132,7 +132,7 @@ function closeViewer() {
 
 async function likePhoto(publicId) {
   try {
-    const res = await fetch(`${LIKE_API}/like`, {
+    const res = await fetch(`${}/like`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: publicId })
