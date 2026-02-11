@@ -1,4 +1,4 @@
-/* hidden属性を必ず効かせる（超重要） */
+/* hidden属性を必ず効かせる（これが無いとviewerが初期表示で出ることがある） */
 [hidden] { display: none !important; }
 
 /* =========================
@@ -88,7 +88,6 @@ body.is-busy{
   gap: 14px;
 }
 
-/* iPhone横 or 大きめ画面 */
 @media (min-width: 560px){
   .gallery{
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -110,7 +109,7 @@ body.is-busy{
 .tile{
   position:relative;
   width:100%;
-  aspect-ratio: 1 / 1; /* 表示はスクエア */
+  aspect-ratio: 1 / 1;
   background:#f3f4f6;
 }
 
@@ -119,10 +118,9 @@ body.is-busy{
   inset:0;
   width:100%;
   height:100%;
-  object-fit: cover; /* 表示は正方形にトリミング */
+  object-fit: cover;
 }
 
-/* タップ領域 */
 .tile-hit{
   position:absolute;
   inset:0;
@@ -132,7 +130,6 @@ body.is-busy{
   z-index:2;
 }
 
-/* 選択チェック */
 .tile-check{
   position:absolute;
   left:10px;
@@ -158,7 +155,6 @@ body.is-busy{
   margin:0;
 }
 
-/* 下のメタ */
 .meta{
   padding: 10px 12px 12px;
   display:flex;
@@ -167,7 +163,6 @@ body.is-busy{
   gap:10px;
 }
 
-/* Like button */
 .like-btn{
   border:0;
   background:transparent;
@@ -181,17 +176,11 @@ body.is-busy{
   align-items:center;
   gap:6px;
 }
-
-.like-btn:active{
-  transform: scale(.98);
-}
-
-.like-count{
-  color:#0f172a;
-}
+.like-btn:active{ transform: scale(.98); }
+.like-count{ color:#0f172a; }
 
 /* =========================
-   Bulk bar (bottom fixed)
+   Bulk bar
 ========================= */
 .bulkbar{
   position:fixed;
@@ -217,9 +206,7 @@ body.is-busy{
   align-items:center;
   gap:10px;
 }
-.bulkbar-count{
-  font-weight:800;
-}
+.bulkbar-count{ font-weight:800; }
 .bulkbar-link{
   border:0;
   background:transparent;
@@ -237,7 +224,6 @@ body.is-busy{
   cursor:pointer;
   white-space:nowrap;
 }
-
 .bulkbar-btn.primary{
   color:#fff;
   background: linear-gradient(135deg, var(--pink1), var(--pink2));
@@ -310,9 +296,7 @@ body.is-busy{
   animation: pulse 1.2s ease-in-out infinite;
 }
 
-@keyframes spin{
-  to{ transform: rotate(360deg); }
-}
+@keyframes spin{ to{ transform: rotate(360deg); } }
 @keyframes pulse{
   0%,100%{ transform: scale(1); opacity:.4; }
   50%{ transform: scale(1.9); opacity:.15; }
