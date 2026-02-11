@@ -3,16 +3,20 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
   <title>Wedding Photo Share</title>
 
-  <link rel="icon"
-    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E%F0%9F%93%B7%3C/text%3E%3C/svg%3E"/>
+  <link
+    rel="icon"
+    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E%F0%9F%93%B7%3C/text%3E%3C/svg%3E"
+  />
 
-  <!-- Cloudinary 先張り -->
+  <!-- Cloudinary 早くする（接続の先張り） -->
   <link rel="preconnect" href="https://res.cloudinary.com" crossorigin>
+  <link rel="preconnect" href="https://api.cloudinary.com" crossorigin>
 
-  <!-- ✅ CSSはこれ1本だけ -->
-  <link rel="stylesheet" href="css/style.css?v=67" />
+  <!-- ✅ CSSは1本だけ（二重読み込み禁止） -->
+  <link rel="stylesheet" href="css/style.css?v=68" />
 </head>
 <body>
 
@@ -31,8 +35,8 @@
 
     <section class="gallery" id="gallery"></section>
 
-    <!-- 無限スクロール用 -->
-    <div id="sentinel" style="height: 1px;"></div>
+    <!-- 無限スクロールの監視点（JSがこれを探します） -->
+    <div id="sentinel" style="height:1px;"></div>
   </main>
 
   <!-- 下固定バー（選択/一括保存） -->
@@ -51,19 +55,19 @@
     </div>
   </div>
 
-  <!-- 全画面オーバーレイ（初回ロード / アップロード / いいね取得など） -->
+  <!-- 全画面オーバーレイ（初回ロード / アップロード / 一括保存準備） -->
   <div id="uploadOverlay" class="overlay" hidden>
     <div class="overlay-card" role="status" aria-live="polite">
       <div class="spinner" aria-hidden="true"></div>
       <div class="spinner-pulse" aria-hidden="true"></div>
 
-      <div id="uploadOverlayTitle" class="overlay-title">処理中…</div>
+      <div class="overlay-title">処理中…</div>
       <div id="uploadOverlaySub" class="overlay-sub">しばらくお待ちください</div>
       <div id="uploadOverlayProgress" class="overlay-progress"></div>
     </div>
   </div>
 
-  <!-- 高画質ビューア（✅最初は hidden。JSでタップ時のみ開く） -->
+  <!-- 高画質ビューア -->
   <div id="viewer" class="viewer" hidden>
     <div class="viewer-backdrop" aria-hidden="true"></div>
 
@@ -93,6 +97,7 @@
     </div>
   </div>
 
-  <script src="js/main.js?v=67"></script>
+  <!-- ✅ JS -->
+  <script src="js/main.js?v=68"></script>
 </body>
 </html>
