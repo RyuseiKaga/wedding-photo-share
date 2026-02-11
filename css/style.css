@@ -1,3 +1,6 @@
+/* ✅ iOS/Safari対策：hidden属性を最優先で効かせる */
+[hidden] { display: none !important; }
+
 /* =========================
    Base
 ========================= */
@@ -102,35 +105,8 @@ body.is-busy{
   border-radius: 16px;
   overflow:hidden;
   box-shadow: 0 10px 30px rgba(0,0,0,.06);
-  position: relative;
 }
 
-/* 👑 No.1 を豪華に（2列ぶち抜き） */
-.card.is-top{
-  grid-column: span 2;
-  box-shadow: 0 18px 60px rgba(0,0,0,.14);
-  border: 2px solid rgba(255, 192, 203, .55);
-}
-@media (min-width: 560px){
-  .card.is-top{ grid-column: span 2; }
-}
-
-/* No.1 バッジ */
-.top-badge{
-  position:absolute;
-  top:10px;
-  left:10px;
-  z-index:4;
-  padding: 8px 10px;
-  border-radius: 999px;
-  background: rgba(255,255,255,.88);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  font-size: 12px;
-  font-weight: 900;
-}
-
-/* 正方形タイル */
 .tile{
   position:relative;
   width:100%;
@@ -205,15 +181,23 @@ body.is-busy{
   align-items:center;
   gap:6px;
 }
-.like-btn:active{ transform: scale(.98); }
-.like-count{ color:#0f172a; }
+
+.like-btn:active{
+  transform: scale(.98);
+}
+
+.like-count{
+  color:#0f172a;
+}
 
 /* =========================
    Bulk bar (bottom fixed)
 ========================= */
 .bulkbar{
   position:fixed;
-  left:0; right:0; bottom:0;
+  left:0;
+  right:0;
+  bottom:0;
   z-index:40;
 
   padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
@@ -233,7 +217,9 @@ body.is-busy{
   align-items:center;
   gap:10px;
 }
-.bulkbar-count{ font-weight:800; }
+.bulkbar-count{
+  font-weight:800;
+}
 .bulkbar-link{
   border:0;
   background:transparent;
@@ -251,6 +237,7 @@ body.is-busy{
   cursor:pointer;
   white-space:nowrap;
 }
+
 .bulkbar-btn.primary{
   color:#fff;
   background: linear-gradient(135deg, var(--pink1), var(--pink2));
@@ -285,11 +272,13 @@ body.is-busy{
   font-size:16px;
   margin-top:10px;
 }
+
 .overlay-sub{
   color:var(--muted);
   font-size:13px;
   margin-top:6px;
 }
+
 .overlay-progress{
   margin-top:10px;
   font-size:12px;
@@ -299,7 +288,8 @@ body.is-busy{
 
 /* Spinner */
 .spinner{
-  width:42px; height:42px;
+  width:42px;
+  height:42px;
   border-radius:50%;
   border: 4px solid #e5e7eb;
   border-top-color: var(--pink1);
@@ -307,7 +297,8 @@ body.is-busy{
   animation: spin 1s linear infinite;
 }
 .spinner.small{
-  width:28px; height:28px;
+  width:28px;
+  height:28px;
   border-width: 3px;
 }
 
@@ -319,7 +310,9 @@ body.is-busy{
   animation: pulse 1.2s ease-in-out infinite;
 }
 
-@keyframes spin{ to{ transform: rotate(360deg); } }
+@keyframes spin{
+  to{ transform: rotate(360deg); }
+}
 @keyframes pulse{
   0%,100%{ transform: scale(1); opacity:.4; }
   50%{ transform: scale(1.9); opacity:.15; }
@@ -361,7 +354,8 @@ body.is-busy{
   top:10px;
   right:10px;
   z-index:3;
-  width:36px; height:36px;
+  width:36px;
+  height:36px;
   border-radius: 999px;
   border:0;
   background: rgba(255,255,255,.92);
