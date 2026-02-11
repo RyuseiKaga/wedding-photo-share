@@ -8,23 +8,21 @@ const UPLOAD_FOLDER = "";                  // 使ってなければ空でOK
 
 const LIKE_API = "https://wedding-like-api.karo2kai.workers.dev"; // Workers URL
 
-// Cloudinary 変換
-const VIEW_TRANSFORM  = "c_limit,w_1800,q_auto:eco";                 // ビューア高画質
-const THUMB_TRANSFORM = "c_fill,w_420,h_420,q_auto:good,f_auto";     // サムネ
+// Cloudinary 変換（速さ優先に少しだけ落とす：体感ほぼ変わらない範囲）
+const VIEW_TRANSFORM  = "c_limit,w_1600,q_auto:good,f_auto";            // ✅ 高画質(保存用/ビュー用)
+const THUMB_TRANSFORM = "c_fill,w_420,h_420,q_auto:good,f_auto";        // サムネ
 
-// ✅ 一括保存だけ軽量（速い / Shareが出ない事故を減らす）
-const BULK_SAVE_TRANSFORM = "c_limit,w_1600,q_auto:eco,f_jpg,fl_progressive";
+// 体験・安定用
+const HIRES_TIMEOUT_MS = 60000;             // 高画質プリロードのタイムアウト（長め）
+const LIKES_BATCH_SIZE = 120;               // ✅ バッチ大きめ（Worker側も対応推奨）
+const RENDER_CHUNK = 18;                    // 追加描画単位
+const RESORT_DEBOUNCE_MS = 700;             // いいね後の並び替えまとめ
+const LIKE_LOCK_MS = 900;                   // ✅ 押した直後しばらく押せない
+const INITIAL_PLACEHOLDER_COUNT = 12;       // 初期の見た目（先に枠出す）
 
-// 制限（安定優先）
-const UPLOAD_MAX_FILES_PER_BATCH = 8;
-const BULK_SAVE_MAX = 9999;                // ✅ 実質なし（端末が落ちたら運用で減らす）
-const HIRES_TIMEOUT_MS = 45000;
-
-// ✅ 一括保存準備（事前DL）の並列数
-const BULK_FETCH_CONCURRENCY = 3;
-
-// ✅ likes batch を大きく
-const LIKES_BATCH_SIZE = 120;
+// Bulk Save（Webの限界があるので “共有(share)” 方式を最優先）
+const BULK_SHARE_TITLE = "Wedding Photos";
+const BULK_SHARE_TEXT = "写真を保存してください";
 
 /* =========================
    DOM
@@ -54,26 +52,23 @@ const $viewerCopy = document.getElementById("viewerCopy");
 /* =========================
    STATE
 ========================= */
-let allPhotos = [];           // [{id, version, format, thumb, view, original}]
+let allPhotos = []; // [{id, version, format, thumb, view, original}]
 let renderIndex = 0;
-const RENDER_CHUNK = 18;
 
-const selected = new Set();  // photo.id
-const likes = new Map();     // photo.id -> number
+const selected = new Set(); // photo.id
+const likes = new Map();    // photo.id -> number
 
 let io = null;
 let viewerOpenPhoto = null;
 let viewerLoadToken = 0;
 
-// ✅ Like 連打防止（サーバ反映までロック）
-const likePending = new Set();
+let resortTimer = null;
 
-// ✅ 一括保存：事前準備（選択中にDL→File化）
-let preparedShareFiles = null;   // File[]
-let preparedForKey = "";         // 選択状態の署名
-let preparePromise = null;       // Promise<File[]|null>
-let prepareAbort = null;         // AbortController
-let prepareTimer = null;         // debounce
+// いいね連打防止（id -> unlock time）
+const likeLocks = new Map();
+
+// 高速にカードを参照するため（id -> { card, likeBtn, countEl, cb })
+const uiById = new Map();
 
 /* =========================
    Utils
@@ -123,45 +118,48 @@ function chunk(arr, size) {
   return out;
 }
 
-function selectionKey(ids) {
-  return ids.slice().sort().join("|");
-}
-
-function setBulkSaveButtonState(state, extraText = "") {
+// Bulk Saveボタンの状態管理
+function setBulkSaveButtonState(state) {
+  // state: "idle" | "preparing"
   if (state === "preparing") {
     $bulkSave.disabled = true;
-    $bulkSave.textContent = extraText ? `準備中…（${extraText}）` : "準備中…";
-    $bulkSave.style.opacity = "0.7";
+    $bulkSave.textContent = "準備中…";
   } else {
     $bulkSave.disabled = false;
     $bulkSave.textContent = "一括保存（カメラロール）";
-    $bulkSave.style.opacity = "1";
   }
 }
 
-function setLikePendingUI(id, pending) {
-  const btn = document.querySelector(`[data-like-btn="${CSS.escape(id)}"]`);
-  if (!btn) return;
-  btn.disabled = pending;
-}
-
 /* =========================
-   Viewer（✅ 起動時に絶対開かない）
+   Viewer：BFCache対策込みで「絶対勝手に出ない」
 ========================= */
-function forceViewerClosedOnLoad() {
+function hardCloseViewer() {
   $viewer.hidden = true;
+  $viewer.style.display = "none"; // BFCache復元に勝つ
+
   $viewerLoading.hidden = true;
   $viewerImg.removeAttribute("src");
-  viewerOpenPhoto = null;
 
-  if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+  viewerOpenPhoto = null;
+  viewerLoadToken++;
+
+  if (location.hash) {
+    history.replaceState(null, "", location.pathname + location.search);
+  }
 }
+function closeViewer() { hardCloseViewer(); }
 
-function closeViewer() {
-  $viewer.hidden = true;
-  $viewerLoading.hidden = true;
-  $viewerImg.removeAttribute("src");
-  viewerOpenPhoto = null;
+function bindLifecycleGuards() {
+  // BFCache復元/戻る/共有シート復帰で勝手に開くのを潰す
+  window.addEventListener("pageshow", () => {
+    hardCloseViewer();
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) hardCloseViewer();
+  });
+  window.addEventListener("focus", () => {
+    hardCloseViewer();
+  });
 }
 
 function preloadImage(url, timeoutMs = HIRES_TIMEOUT_MS) {
@@ -195,10 +193,14 @@ async function openViewer(photo) {
   if (!photo) return;
   viewerOpenPhoto = photo;
 
+  // display none を戻す
+  $viewer.style.display = "";
   $viewer.hidden = false;
+
   $viewerLoading.hidden = false;
   $viewerImg.removeAttribute("src");
 
+  // ボタン先に有効化（保存導線）
   $viewerOpen.href = photo.original;
   $viewerCopy.dataset.url = photo.original;
 
@@ -224,11 +226,12 @@ async function openViewer(photo) {
 }
 
 /* =========================
-   Likes API（反映漏れが嫌 → 連打不可）
+   Likes API（頑丈に）
 ========================= */
 async function fetchLikesBatch(ids) {
   if (!ids.length) return;
 
+  // 1) POST /likes/batch
   try {
     const res = await fetch(`${LIKE_API}/likes/batch`, {
       method: "POST",
@@ -245,8 +248,9 @@ async function fetchLikesBatch(ids) {
       }
       return;
     }
-  } catch (e) {}
+  } catch (_) {}
 
+  // 2) GET /likes/batch?ids=...
   try {
     const qs = encodeURIComponent(ids.join(","));
     const res = await fetch(`${LIKE_API}/likes/batch?ids=${qs}`);
@@ -258,26 +262,35 @@ async function fetchLikesBatch(ids) {
       if (typeof v === "number") likes.set(id, v);
       else if (!likes.has(id)) likes.set(id, 0);
     }
-  } catch (e) {}
+  } catch (_) {}
+}
+
+function scheduleResort() {
+  if (resortTimer) return;
+  resortTimer = setTimeout(() => {
+    resortTimer = null;
+    resortByLikesAndRerender();
+  }, RESORT_DEBOUNCE_MS);
 }
 
 async function postLike(id) {
-  if (likePending.has(id)) return;
+  const now = Date.now();
+  const until = likeLocks.get(id) || 0;
+  if (now < until) return; // lock中
 
-  likePending.add(id);
-  setLikePendingUI(id, true);
+  // lock
+  likeLocks.set(id, now + LIKE_LOCK_MS);
+  setLikeButtonDisabled(id, true);
 
-  // 即時反映（体感）
+  // 極小の演出（ふわっと光る）
+  pulseLikeGlow(id);
+
+  // 即時反映
   const next = (likes.get(id) || 0) + 1;
   likes.set(id, next);
   updateLikeUI(id, next);
 
-  // 永久ロック防止
-  const unlockTimer = setTimeout(() => {
-    likePending.delete(id);
-    setLikePendingUI(id, false);
-  }, 8000);
-
+  // サーバ反映（成功したら確定値で合わせる）
   try {
     const res = await fetch(`${LIKE_API}/likes`, {
       method: "POST",
@@ -293,34 +306,53 @@ async function postLike(id) {
         (typeof data?.value === "number" && data.value) ||
         (typeof data === "number" && data);
 
-      // ✅ “戻る”対策：サーバが古くても下げない
       if (typeof serverCount === "number") {
-        const cur = likes.get(id) || 0;
-        const merged = Math.max(cur, serverCount);
-        likes.set(id, merged);
-        updateLikeUI(id, merged);
+        likes.set(id, serverCount);
+        updateLikeUI(id, serverCount);
       }
-
       scheduleResort();
     } else {
-      console.warn("like api not ok:", res.status);
+      // 失敗でもUIは維持（戻さない）
+      console.warn("like failed:", res.status);
     }
   } catch (e) {
-    console.warn("like api failed:", e);
+    console.warn("like error:", e);
   } finally {
-    clearTimeout(unlockTimer);
-    likePending.delete(id);
-    setLikePendingUI(id, false);
+    // unlock
+    const remaining = Math.max(0, (likeLocks.get(id) || 0) - Date.now());
+    setTimeout(() => {
+      likeLocks.delete(id);
+      setLikeButtonDisabled(id, false);
+    }, remaining);
   }
 }
 
 function updateLikeUI(id, count) {
-  const el = document.querySelector(`[data-like-count="${CSS.escape(id)}"]`);
-  if (el) el.textContent = String(count ?? 0);
+  const ui = uiById.get(id);
+  if (ui?.countEl) ui.countEl.textContent = String(count ?? 0);
+}
+
+function setLikeButtonDisabled(id, disabled) {
+  const ui = uiById.get(id);
+  if (!ui?.likeBtn) return;
+  ui.likeBtn.disabled = !!disabled;
+  ui.likeBtn.setAttribute("aria-disabled", disabled ? "true" : "false");
+  ui.likeBtn.classList.toggle("is-locked", !!disabled);
+}
+
+function pulseLikeGlow(id) {
+  const ui = uiById.get(id);
+  if (!ui?.card) return;
+  ui.card.classList.remove("like-pulse");
+  // reflow
+  void ui.card.offsetWidth;
+  ui.card.classList.add("like-pulse");
+  setTimeout(() => ui.card && ui.card.classList.remove("like-pulse"), 650);
 }
 
 /* =========================
-   Render（CSSの .card/.tile に合わせる）
+   Render（.card/.tile 構造に合わせる）
+   ✅ 画像は <img loading=lazy> で遅延（初期表示を軽く）
 ========================= */
 function buildPhotoCard(photo, isTop = false) {
   const card = document.createElement("div");
@@ -352,9 +384,7 @@ function buildPhotoCard(photo, isTop = false) {
   cb.addEventListener("change", () => {
     if (cb.checked) selected.add(photo.id);
     else selected.delete(photo.id);
-
     setBulkBar();
-    schedulePrepareBulk();
   });
 
   const cbText = document.createElement("span");
@@ -374,21 +404,47 @@ function buildPhotoCard(photo, isTop = false) {
   const likeBtn = document.createElement("button");
   likeBtn.type = "button";
   likeBtn.className = "like-btn";
-  likeBtn.dataset.likeBtn = photo.id; // ✅ ロックUI用
-  likeBtn.disabled = likePending.has(photo.id);
-  likeBtn.innerHTML = `❤ <span class="like-count" data-like-count="${photo.id}">${likes.get(photo.id) || 0}</span>`;
+  likeBtn.innerHTML = `❤ <span class="like-count">${likes.get(photo.id) || 0}</span>`;
   likeBtn.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
     postLike(photo.id);
   });
 
+  // countEl参照
+  const countEl = likeBtn.querySelector(".like-count");
+
   meta.appendChild(likeBtn);
 
   card.appendChild(tile);
   card.appendChild(meta);
 
+  // ui cache
+  uiById.set(photo.id, { card, likeBtn, countEl, cb });
+
+  // lock状態復元
+  const locked = (likeLocks.get(photo.id) || 0) > Date.now();
+  if (locked) setLikeButtonDisabled(photo.id, true);
+
   return card;
+}
+
+function renderPlaceholders() {
+  // 初期が真っ白で重く見えるのを避ける：ダミーカードを少しだけ
+  $gallery.innerHTML = "";
+  uiById.clear();
+
+  for (let i = 0; i < INITIAL_PLACEHOLDER_COUNT; i++) {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML = `
+      <div class="tile" style="background:#f3f4f6"></div>
+      <div class="meta">
+        <button class="like-btn" type="button" disabled aria-disabled="true">❤ <span class="like-count">…</span></button>
+      </div>
+    `;
+    $gallery.appendChild(card);
+  }
 }
 
 function renderNextChunk() {
@@ -399,14 +455,17 @@ function renderNextChunk() {
   for (let i = renderIndex; i < end; i++) {
     frag.appendChild(buildPhotoCard(allPhotos[i], i === 0));
   }
+
+  // 初回 placeholder があれば消して差し替え
+  if (renderIndex === 0) $gallery.innerHTML = "";
   $gallery.appendChild(frag);
+
   renderIndex = end;
   return (renderIndex < allPhotos.length);
 }
 
 function setupInfiniteScroll() {
   if (io) io.disconnect();
-
   io = new IntersectionObserver((entries) => {
     for (const e of entries) {
       if (!e.isIntersecting) continue;
@@ -421,31 +480,28 @@ function setupInfiniteScroll() {
 /* =========================
    Sort: いいね多い順（TOP豪華）
 ========================= */
-let resortTimer = null;
-function scheduleResort() {
-  if (resortTimer) return;
-  resortTimer = setTimeout(() => {
-    resortTimer = null;
-    resortByLikesAndRerender();
-  }, 800);
-}
-
 function resortByLikesAndRerender() {
+  // いいね未取得は0扱い
   allPhotos.sort((a, b) => (likes.get(b.id) || 0) - (likes.get(a.id) || 0));
 
+  // 再描画（選択・ロック状態は維持できる）
   $gallery.innerHTML = "";
+  uiById.clear();
   renderIndex = 0;
   renderNextChunk();
   setupInfiniteScroll();
 
-  schedulePrepareBulk();
+  // bulk bar 表示維持
+  setBulkBar();
 }
 
 /* =========================
    Load Cloudinary list
+   ✅ いいねは「先に取得して並び替え」ただし画像は lazy なので軽い
 ========================= */
 async function loadList() {
-  showOverlay("読み込み中…", "写真一覧を取得しています", "");
+  renderPlaceholders();
+  showOverlay("読み込み中…", "いいねを取得して並び替えています", "");
 
   const url = jsonUrl();
   const res = await fetch(url, { cache: "no-store" });
@@ -454,6 +510,7 @@ async function loadList() {
   const data = await res.json();
   const resources = Array.isArray(data?.resources) ? data.resources : [];
 
+  // 最新順の保険（Cloudinary listの順が安定しないことがある）
   resources.sort((a, b) => (b.version || 0) - (a.version || 0));
 
   allPhotos = resources.map(r => {
@@ -467,21 +524,24 @@ async function loadList() {
       format,
       thumb: cldUrl(meta, THUMB_TRANSFORM),
       view: cldUrl(meta, VIEW_TRANSFORM),
-      original: cldUrl(meta, ""),
+      original: cldUrl(meta, ""), // 原寸
     };
   });
 
-  // likes をまとめて取得
+  // ✅ いいねをまとめて取得（大きめ）
   const ids = allPhotos.map(p => p.id);
   const batches = chunk(ids, LIKES_BATCH_SIZE);
   for (let i = 0; i < batches.length; i++) {
-    updateOverlay(`いいね取得中… ${i + 1} / ${batches.length}`);
+    updateOverlay(`${Math.min((i + 1) * LIKES_BATCH_SIZE, ids.length)} / ${ids.length}`);
     await fetchLikesBatch(batches[i]);
   }
 
+  // ✅ いいね順に並び替え
   allPhotos.sort((a, b) => (likes.get(b.id) || 0) - (likes.get(a.id) || 0));
 
+  // 描画（画像は lazy）
   $gallery.innerHTML = "";
+  uiById.clear();
   renderIndex = 0;
   renderNextChunk();
   setupInfiniteScroll();
@@ -491,23 +551,18 @@ async function loadList() {
 
 /* =========================
    Upload
+   ※ ここは必要なら後で（今は触らず安定優先）
 ========================= */
 async function uploadFiles(files) {
   if (!files || files.length === 0) return;
 
-  const list = files.slice(0, UPLOAD_MAX_FILES_PER_BATCH);
-
-  showOverlay(
-    "アップロード中…",
-    `※ 数枚ずつアップロードが安定します（最大 ${UPLOAD_MAX_FILES_PER_BATCH} 枚）`,
-    `0 / ${list.length}`
-  );
+  showOverlay("アップロード中…", "しばらくお待ちください", `0 / ${files.length}`);
 
   const uploaded = [];
-  for (let i = 0; i < list.length; i++) {
-    updateOverlay(`${i + 1} / ${list.length}`);
+  for (let i = 0; i < files.length; i++) {
+    updateOverlay(`${i + 1} / ${files.length}`);
 
-    const file = list[i];
+    const file = files[i];
     const fd = new FormData();
     fd.append("file", file);
     fd.append("upload_preset", UPLOAD_PRESET);
@@ -531,21 +586,25 @@ async function uploadFiles(files) {
     });
   }
 
+  // 即時反映（list json待ちしない）
   const newPhotos = uploaded.map(meta => ({
     id: meta.public_id,
     version: meta.version,
     format: meta.format,
-    thumb: cldUrl(meta, THUMB_TRANSFORM),
-    view: cldUrl(meta, VIEW_TRANSFORM),
-    original: cldUrl(meta, ""),
+    thumb: cldUrl({ public_id: meta.public_id, version: meta.version, format: meta.format }, THUMB_TRANSFORM),
+    view: cldUrl({ public_id: meta.public_id, version: meta.version, format: meta.format }, VIEW_TRANSFORM),
+    original: cldUrl({ public_id: meta.public_id, version: meta.version, format: meta.format }, ""),
   }));
 
-  for (const p of newPhotos) likes.set(p.id, likes.get(p.id) || 0);
+  for (const p of newPhotos) {
+    if (!likes.has(p.id)) likes.set(p.id, 0);
+  }
 
   allPhotos = [...newPhotos, ...allPhotos];
   allPhotos.sort((a, b) => (likes.get(b.id) || 0) - (likes.get(a.id) || 0));
 
   $gallery.innerHTML = "";
+  uiById.clear();
   renderIndex = 0;
   renderNextChunk();
   setupInfiniteScroll();
@@ -554,165 +613,102 @@ async function uploadFiles(files) {
 }
 
 /* =========================
-   Bulk Save: 事前準備（選択中にDL→File化）
+   Bulk Save（共有シートで “画像を保存” を出す導線）
+   ✅ できる端末では：Share -> “画像を保存/写真に追加”
+   ✅ できない端末では：フォールバック（タブで開く）
 ========================= */
-async function fetchImageAsFileWithSignal(url, filenameBase, signal) {
-  const res = await fetch(url, { cache: "no-store", signal });
-  if (!res.ok) throw new Error(`fetch failed: ${res.status}`);
+async function buildFetchBlob(url, timeoutMs = 60000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
 
-  const blob = await res.blob();
-  const ext = (blob.type && blob.type.includes("png")) ? "png"
-            : (blob.type && (blob.type.includes("jpeg") || blob.type.includes("jpg"))) ? "jpg"
-            : "jpg";
-
-  return new File([blob], `${filenameBase}.${ext}`, { type: blob.type || "image/jpeg" });
-}
-
-function cancelPrepare() {
-  preparedShareFiles = null;
-  preparedForKey = "";
-  preparePromise = null;
-
-  if (prepareAbort) {
-    try { prepareAbort.abort(); } catch {}
-    prepareAbort = null;
-  }
-  if (prepareTimer) {
-    clearTimeout(prepareTimer);
-    prepareTimer = null;
+  try {
+    const res = await fetch(url, { signal: ctrl.signal, cache: "no-store" });
+    if (!res.ok) throw new Error(`fetch ${res.status}`);
+    const blob = await res.blob();
+    return blob;
+  } finally {
+    clearTimeout(t);
   }
 }
 
-function schedulePrepareBulk() {
-  const ids = Array.from(selected);
-
-  if (ids.length === 0) {
-    cancelPrepare();
-    setBulkSaveButtonState("idle");
-    return;
+async function shareFilesIfPossible(files) {
+  if (!navigator.canShare || !navigator.share) return false;
+  try {
+    if (!navigator.canShare({ files })) return false;
+    await navigator.share({
+      title: BULK_SHARE_TITLE,
+      text: BULK_SHARE_TEXT,
+      files,
+    });
+    return true;
+  } catch (e) {
+    // ユーザーキャンセル含む
+    console.warn("share canceled/failed:", e);
+    return false;
   }
-
-  // 実質なし（BULK_SAVE_MAXが巨大）
-  if (ids.length > BULK_SAVE_MAX) {
-    cancelPrepare();
-    setBulkSaveButtonState("idle");
-    return;
-  }
-
-  if (prepareTimer) clearTimeout(prepareTimer);
-  prepareTimer = setTimeout(() => {
-    prepareTimer = null;
-    prepareBulkFiles(ids).catch(() => {});
-  }, 300);
-}
-
-async function prepareBulkFiles(ids) {
-  const key = selectionKey(ids);
-
-  if (preparedShareFiles && preparedForKey === key) {
-    setBulkSaveButtonState("ready");
-    return preparedShareFiles;
-  }
-
-  if (preparePromise && preparedForKey === key) {
-    setBulkSaveButtonState("preparing", `${ids.length}枚`);
-    return preparePromise;
-  }
-
-  cancelPrepare();
-  preparedForKey = key;
-
-  const canShareFiles = !!navigator.share && typeof navigator.canShare === "function";
-  if (!canShareFiles) {
-    setBulkSaveButtonState("ready");
-    return null;
-  }
-
-  setBulkSaveButtonState("preparing", `${ids.length}枚`);
-
-  prepareAbort = new AbortController();
-  const signal = prepareAbort.signal;
-
-  const files = new Array(ids.length);
-  let cursor = 0;
-
-  const worker = async () => {
-    while (cursor < ids.length) {
-      const i = cursor++;
-      const photo = allPhotos.find(p => p.id === ids[i]);
-      if (!photo) continue;
-
-      const url = cldUrl(
-        { public_id: photo.id, version: photo.version, format: "jpg" },
-        BULK_SAVE_TRANSFORM
-      );
-
-      files[i] = await fetchImageAsFileWithSignal(url, `photo_${i + 1}`, signal);
-    }
-  };
-
-  preparePromise = (async () => {
-    const workers = Array.from(
-      { length: Math.min(BULK_FETCH_CONCURRENCY, ids.length) },
-      () => worker()
-    );
-    await Promise.all(workers);
-
-    if (preparedForKey !== key) return null;
-
-    const shareFiles = files.filter(Boolean);
-    preparedShareFiles = shareFiles;
-    setBulkSaveButtonState("ready");
-    return shareFiles;
-  })();
-
-  return preparePromise;
 }
 
 async function bulkSaveSelected() {
   const ids = Array.from(selected);
   if (ids.length === 0) return;
 
-  const key = selectionKey(ids);
-  const canShareFiles = !!navigator.share && typeof navigator.canShare === "function";
+  setBulkSaveButtonState("preparing");
+  showOverlay("一括保存の準備中…", "画像をまとめて用意しています", `0 / ${ids.length}`);
 
-  if (
-    canShareFiles &&
-    preparedShareFiles &&
-    preparedForKey === key &&
-    preparedShareFiles.length &&
-    navigator.canShare &&
-    navigator.canShare({ files: preparedShareFiles })
-  ) {
+  // ✅ 共有シートに渡すため、先にBlob化（ここで時間がかかることがある）
+  // 体験を壊さないため進捗を出す
+  const files = [];
+  for (let i = 0; i < ids.length; i++) {
+    updateOverlay(`${i + 1} / ${ids.length}`);
+
+    const id = ids[i];
+    const photo = allPhotos.find(p => p.id === id);
+    if (!photo) continue;
+
+    // 高画質を取得（保存用途）— 体感変わらない程度にVIEW_TRANSFORMを軽量化済み
     try {
-      await navigator.share({
-        files: preparedShareFiles,
-        title: "写真を保存",
-        text: "「画像を保存」または「“ファイル”に保存」を選んでください",
-      });
-      return;
+      const blob = await buildFetchBlob(photo.view, 90000);
+      const ext = (blob.type && blob.type.includes("png")) ? "png" : "jpg";
+      const name = `photo_${i + 1}.${ext}`;
+      files.push(new File([blob], name, { type: blob.type || "image/jpeg" }));
     } catch (e) {
-      console.warn("share canceled/failed:", e);
+      console.warn("blob fetch failed:", e);
+      // 失敗したら原寸URLを開くフォールバックで逃がす（後でまとめて）
+    }
+  }
+
+  hideOverlay();
+
+  // ✅ 共有で一括保存（iOS Safariで “画像を保存” が出やすい）
+  if (files.length > 0) {
+    const ok = await shareFilesIfPossible(files);
+    if (ok) {
+      setBulkSaveButtonState("idle");
       return;
     }
   }
 
-  showOverlay("準備中…", "一括保存のため画像を準備しています", `${ids.length} 枚`);
-  try {
-    await prepareBulkFiles(ids);
-  } catch (e) {
-    console.warn(e);
-  } finally {
-    hideOverlay();
+  // フォールバック：原寸（またはview）を順番に開く方式
+  // （共有が使えない/失敗する端末用）
+  if (isLikelyTouchDevice()) {
+    alert("共有で一括保存できない端末でした。代わりにタブで画像を開きます。\n各画像を長押しして「写真に追加/画像を保存」してください。");
   }
 
-  alert("準備できました！もう一度『一括保存』を押してください。");
+  for (const id of ids) {
+    const photo = allPhotos.find(p => p.id === id);
+    if (!photo) continue;
+    window.open(photo.view, "_blank", "noopener");
+    await sleep(380);
+  }
+
+  setBulkSaveButtonState("idle");
 }
 
 /* =========================
    Events
 ========================= */
 function bindEvents() {
+  // Upload
   $fileInput.addEventListener("change", async (e) => {
     const files = Array.from(e.target.files || []);
     e.target.value = "";
@@ -727,13 +723,14 @@ function bindEvents() {
     }
   });
 
+  // Bulk selection
   $clearSelection.addEventListener("click", () => {
     selected.clear();
-    document.querySelectorAll('.tile-check input[type="checkbox"]').forEach(cb => (cb.checked = false));
+    // UIのチェックを外す
+    for (const [, ui] of uiById) {
+      if (ui?.cb) ui.cb.checked = false;
+    }
     setBulkBar();
-
-    cancelPrepare();
-    setBulkSaveButtonState("idle");
   });
 
   $bulkSave.addEventListener("click", async () => {
@@ -742,17 +739,22 @@ function bindEvents() {
     } catch (e) {
       console.error(e);
       hideOverlay();
-      alert("一括保存に失敗しました。枚数を減らして試してください。");
+      alert("一括保存に失敗しました。通信が弱い場合は時間を置いて再試行してください。");
+    } finally {
+      setBulkSaveButtonState("idle");
     }
   });
 
+  // Viewer close
   $viewerClose.addEventListener("click", closeViewer);
   $viewerBackdrop.addEventListener("click", closeViewer);
 
+  // Esc close
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !$viewer.hidden) closeViewer();
   });
 
+  // URL copy
   $viewerCopy.addEventListener("click", async () => {
     const url = $viewerCopy.dataset.url || "";
     if (!url) return;
@@ -768,11 +770,19 @@ function bindEvents() {
 }
 
 /* =========================
+   CSS用：ふわっと光る（JSがclass付けるだけ）
+   ※ CSS側に .like-pulse がない場合でも壊れない
+========================= */
+
+/* =========================
    Boot
 ========================= */
 async function boot() {
-  forceViewerClosedOnLoad();
+  // ✅ 起動時・復帰時に勝手にビューアが出るのを潰す
+  hardCloseViewer();
+
   bindEvents();
+  bindLifecycleGuards();
 
   try {
     await loadList();
