@@ -17,7 +17,7 @@ const BULK_SAVE_MAX = 25;
 const HIRES_TIMEOUT_MS = 45000;
 
 // Likes 取得最適化
-const LIKES_BATCH_SIZE = 80;       // 1回で投げるids数
+const LIKES_BATCH_SIZE = 120;       // 1回で投げるids数
 const LIKES_CONCURRENCY = 6;       // 並列数（速い回線なら 6〜8 推奨）
 const RESORT_DEBOUNCE_MS = 900;    // 連打時の並び替え間引き
 
