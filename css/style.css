@@ -839,3 +839,34 @@ body.is-busy{
     animation: none !important;
   }
 }
+/* =========================
+   HOTFIX: Confetti visibility stabilize (ADD ONLY)
+   - 二重定義の競合を避けて、常にカード上に見えるようにする
+========================= */
+.card{ position: relative; } /* 念のため（既にあっても同値なのでOK） */
+
+.card.top-swap-ultra{ position: relative; z-index: 1; } /* グロー等の上に載せる土台 */
+
+.confetti{
+  /* 既存定義が複数あるので、最終勝ちで“見える”に寄せる */
+  position: absolute;
+  inset: -10px;          /* 少しはみ出しても見える */
+  pointer-events: none;
+  overflow: visible;     /* hiddenだと落下途中が切れる */
+  z-index: 9999;         /* 何より上 */
+}
+
+.confetti i{
+  /* 既存の top:10px / -10px が混在しても確実に上から落ちる */
+  top: -14px;
+  opacity: 0;
+  will-change: transform, opacity;
+  transform: translate3d(0,0,0) rotate(0deg);
+}
+
+/* Safari系で blend/blur と競合した時に消えるのを抑止 */
+.card.top-swap-ultra,
+.card--top.top-swap-ultra{
+  isolation: isolate;
+}
+
