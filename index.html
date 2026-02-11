@@ -14,7 +14,7 @@
   <!-- Cloudinary 早くする（接続の先張り） -->
   <link rel="preconnect" href="https://res.cloudinary.com" crossorigin>
 
-  <link rel="stylesheet" href="css/style.css?v=60" />
+  <link rel="stylesheet" href="css/style.css?v=65" />
 </head>
 <body>
 
@@ -31,6 +31,7 @@
       </label>
     </section>
 
+    <!-- ✅ main.js がここにカードを追加します -->
     <section class="gallery" id="gallery"></section>
   </main>
 
@@ -92,7 +93,8 @@
     </div>
   </div>
 
-  <link rel="stylesheet" href="css/style.css?v=64" />
+  <!-- ✅ main.js は body最後で読み込む -->
+  <script src="js/main.js?v=65"></script>
 
 </body>
 </html>
