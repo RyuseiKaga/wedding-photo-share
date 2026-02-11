@@ -4,7 +4,7 @@
 
 const CLOUD_NAME = "dmei50xsu";   // ←あなたのCloud name
 const TAG_NAME = "wedding_2026";  // 使っているタグ
-const LIKE_API = "https://wedding-like-api.karo2kai.workers.dev";// Worker URL
+const LIKE_API = "https://wedding-like-api.karo2kai.workers.dev";
 
 /* =========================
    STATE
