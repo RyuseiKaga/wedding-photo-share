@@ -70,6 +70,13 @@ const likeLocks = new Map(); // id -> unlock time(ms)
 // id -> { card, likeBtn, countEl, cb, photo }
 const uiById = new Map();
 
+// ✅ TOP入れ替え検出用
+let lastTopId = null;
+
+// ✅ リロード/再描画で演出が消える対策（“発火予約”）
+const PENDING_LIKE_GLOW_KEY = "wedding_pending_like_glow_v1";
+const PENDING_TOP_SWAP_KEY  = "wedding_pending_top_swap_v1";
+
 /**
  * ✅ 裏DL（prefetch）
  *  - entries: id -> { state, file, error, controller, url }
@@ -115,6 +122,49 @@ function chunk(arr, size) {
   const out = [];
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
   return out;
+}
+
+/* =========================
+   ✅ Pending Effects（再描画/リロードでも演出を出す）
+========================= */
+function setPendingEffect(key, payload) {
+  try {
+    sessionStorage.setItem(key, JSON.stringify({ ...payload, t: Date.now() }));
+  } catch {}
+}
+function consumePendingEffect(key, maxAgeMs) {
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+    sessionStorage.removeItem(key);
+    const obj = JSON.parse(raw);
+    if (!obj?.t || (Date.now() - obj.t) > maxAgeMs) return null;
+    return obj;
+  } catch {
+    try { sessionStorage.removeItem(key); } catch {}
+    return null;
+  }
+}
+function applyPendingEffectsAfterRender() {
+  // レンダリング直後に1回だけ実行（TOP/likeボタンDOMが出来てから）
+  requestAnimationFrame(() => {
+    // like glow（最大30秒まで）
+    const pl = consumePendingEffect(PENDING_LIKE_GLOW_KEY, 30000);
+    if (pl?.id) {
+      // もう一度ふわっと光らせる（再描画で消えてもOK）
+      pulseLikeGlow(pl.id);
+    }
+
+    // top swap（最大60秒まで）
+    const pt = consumePendingEffect(PENDING_TOP_SWAP_KEY, 60000);
+    if (pt?.id) {
+      // 現在のTOPが一致している時だけ
+      const topNow = allPhotos[0]?.id || null;
+      if (topNow && topNow === pt.id) {
+        triggerTopSwapUltra(pt.id);
+      }
+    }
+  });
 }
 
 /* =========================
@@ -388,13 +438,21 @@ function setLikeButtonDisabled(id, disabled) {
   ui.likeBtn.classList.toggle("is-locked", !!disabled);
 }
 
+/* =========================
+   ✅ いいね：ふわっと光る（CSSの .like-btn.like-glow を使う）
+========================= */
 function pulseLikeGlow(id) {
   const ui = uiById.get(id);
-  if (!ui?.card) return;
-  ui.card.classList.remove("like-pulse");
-  void ui.card.offsetWidth;
-  ui.card.classList.add("like-pulse");
-  setTimeout(() => ui.card && ui.card.classList.remove("like-pulse"), 650);
+  if (!ui?.likeBtn) return;
+
+  ui.likeBtn.classList.remove("like-glow");
+  void ui.likeBtn.offsetWidth; // reflow で連続発火できるように
+  ui.likeBtn.classList.add("like-glow");
+
+  // CSS側のアニメ時間に合わせて掃除
+  setTimeout(() => {
+    try { ui.likeBtn.classList.remove("like-glow"); } catch {}
+  }, 750);
 }
 
 function scheduleResort() {
@@ -413,7 +471,9 @@ async function postLike(id) {
   likeLocks.set(id, now + LIKE_LOCK_MS);
   setLikeButtonDisabled(id, true);
 
+  // ✅ 先に演出（＋再描画/リロードで消えても出せるように予約）
   pulseLikeGlow(id);
+  setPendingEffect(PENDING_LIKE_GLOW_KEY, { id });
 
   const next = (likes.get(id) || 0) + 1;
   likes.set(id, next);
@@ -447,6 +507,57 @@ async function postLike(id) {
       setLikeButtonDisabled(id, false);
     }, remaining);
   }
+}
+
+/* =========================
+   ✅ TOP swap ULTRA（2位→1位に入れ替わった時だけ）
+   - .top-swap-ultra クラス + .confetti を一時生成
+========================= */
+function triggerTopSwapUltra(topId) {
+  const ui = uiById.get(topId);
+  const card = ui?.card;
+  if (!card) return;
+
+  // ① クラスで豪華アニメ発火
+  card.classList.remove("top-swap-ultra");
+  void card.offsetWidth;
+  card.classList.add("top-swap-ultra");
+
+  // ② 紙吹雪DOMを一時生成（軽量）
+  const old = card.querySelector(".confetti");
+  if (old) old.remove();
+
+  const confetti = document.createElement("div");
+  confetti.className = "confetti";
+
+  const N = 18;
+  for (let i = 0; i < N; i++) {
+    const p = document.createElement("i");
+    p.className = ["c1","c2","c3","c4","c5"][i % 5];
+
+    p.style.left = `${Math.random() * 100}%`;
+
+    const w = 6 + Math.random() * 6;
+    const h = 8 + Math.random() * 10;
+    p.style.width = `${w}px`;
+    p.style.height = `${h}px`;
+    p.style.borderRadius = `${1 + Math.random() * 3}px`;
+
+    const dur = 750 + Math.random() * 650;
+    const delay = Math.random() * 120;
+    p.style.animation = `${(i % 2 === 0) ? "confettiFall" : "confettiFall2"} ${dur}ms ease-out ${delay}ms forwards`;
+
+    confetti.appendChild(p);
+  }
+
+  card.appendChild(confetti);
+
+  // ③ お掃除
+  setTimeout(() => {
+    try { card.classList.remove("top-swap-ultra"); } catch {}
+    const c = card.querySelector(".confetti");
+    if (c) c.remove();
+  }, 1700);
 }
 
 /* =========================
@@ -740,7 +851,12 @@ function setupInfiniteScroll() {
 }
 
 function resortByLikesAndRerender() {
+  const prevTop = lastTopId;
+
   allPhotos.sort((a, b) => (likes.get(b.id) || 0) - (likes.get(a.id) || 0));
+
+  const nextTop = allPhotos[0]?.id || null;
+  lastTopId = nextTop;
 
   $gallery.innerHTML = "";
   uiById.clear();
@@ -749,6 +865,18 @@ function resortByLikesAndRerender() {
   renderNextChunk();
   setupInfiniteScroll();
   setBulkBar();
+
+  // ✅ 2位が1位を超えた時だけ（TOPが変わった時だけ）演出
+  if (prevTop && nextTop && prevTop !== nextTop) {
+    // 再描画/リロードで消えてもOKなように予約
+    setPendingEffect(PENDING_TOP_SWAP_KEY, { id: nextTop });
+
+    // 今の描画が完了してから発火
+    requestAnimationFrame(() => triggerTopSwapUltra(nextTop));
+  }
+
+  // 予約していた演出があれば、ここでも拾える
+  applyPendingEffectsAfterRender();
 }
 
 /* =========================
@@ -789,6 +917,7 @@ async function loadList() {
     }
 
     allPhotos.sort((a, b) => (likes.get(b.id) || 0) - (likes.get(a.id) || 0));
+    lastTopId = allPhotos[0]?.id || null;
 
     $gallery.innerHTML = "";
     uiById.clear();
@@ -796,6 +925,9 @@ async function loadList() {
 
     renderNextChunk();
     setupInfiniteScroll();
+
+    // ✅ リロード/再描画で消えた演出があればここで復元
+    applyPendingEffectsAfterRender();
   });
 }
 
@@ -846,12 +978,16 @@ async function uploadFiles(files) {
 
     allPhotos = [...newPhotos, ...allPhotos];
     allPhotos.sort((a, b) => (likes.get(b.id) || 0) - (likes.get(a.id) || 0));
+    lastTopId = allPhotos[0]?.id || lastTopId;
 
     $gallery.innerHTML = "";
     uiById.clear();
     renderIndex = 0;
     renderNextChunk();
     setupInfiniteScroll();
+
+    // 念のため（予約演出があれば）
+    applyPendingEffectsAfterRender();
   });
 }
 
