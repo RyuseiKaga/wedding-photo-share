@@ -511,3 +511,149 @@ body.is-busy{
 .card-glow{
   animation: cardGlow 700ms ease-out;
 }
+/* =========================
+   TOP swap effect (ULTRA)
+   1位入れ替わり時だけ発火: .card--top.top-swap-ultra
+========================= */
+
+/* ゴールド寄りの色味（自然系に合わせた“ブラス”） */
+:root{
+  --gold1: rgba(255, 235, 170, .95);
+  --gold2: rgba(255, 211, 94, .85);
+  --gold3: rgba(255, 170, 40, .65);
+}
+
+/* 1) カード自体：バウンス＋ゴールドグロー */
+@keyframes topUltraPop {
+  0%   { transform: scale(1); filter: none; }
+  18%  { transform: scale(1.035); filter: saturate(1.06) contrast(1.03); }
+  40%  { transform: scale(1.018); }
+  60%  { transform: scale(1.028); }
+  100% { transform: scale(1); filter: none; }
+}
+
+@keyframes topUltraGlow {
+  0%   { box-shadow: 0 22px 60px rgba(47,111,94,.20); }
+  35%  { box-shadow:
+          0 28px 90px rgba(47,111,94,.22),
+          0 0 0 6px rgba(255,211,94,.18),
+          0 0 0 14px rgba(255,211,94,.08); }
+  100% { box-shadow: 0 22px 60px rgba(47,111,94,.20); }
+}
+
+.card--top.top-swap-ultra{
+  animation: topUltraPop 980ms cubic-bezier(.2,.95,.15,1),
+             topUltraGlow 980ms ease-out;
+  position: relative;
+  overflow: hidden; /* confetti がはみ出さない */
+}
+
+/* 2) シマー（キラッと横切る帯） */
+@keyframes topUltraShimmer {
+  0%   { transform: translateX(-140%) rotate(12deg); opacity: 0; }
+  10%  { opacity: .95; }
+  55%  { opacity: .55; }
+  100% { transform: translateX(160%) rotate(12deg); opacity: 0; }
+}
+.card--top.top-swap-ultra::after{
+  content:"";
+  position:absolute;
+  inset:-35% -45%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255,255,255,0) 35%,
+    rgba(255,255,255,.92) 50%,
+    rgba(255,255,255,0) 65%,
+    transparent 100%
+  );
+  pointer-events:none;
+  mix-blend-mode: screen;
+  animation: topUltraShimmer 900ms ease-out;
+}
+
+/* 3) 王冠バウンス（既存の ::before バッジを“ゴールド化＆跳ねる”） */
+@keyframes crownBounce {
+  0%   { transform: translateY(0) scale(1); }
+  28%  { transform: translateY(-2px) scale(1.10); }
+  55%  { transform: translateY(0) scale(1.02); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+/* 既存TOPバッジをゴールド寄りに（普段も） */
+.card--top::before{
+  background: linear-gradient(135deg, rgba(255,211,94,.92), rgba(255,170,40,.78));
+  color: rgba(24,24,24,.92);
+  text-shadow: 0 1px 0 rgba(255,255,255,.35);
+  border: 1px solid rgba(255,255,255,.25);
+}
+
+/* 入れ替わり時だけ跳ねる */
+.card--top.top-swap-ultra::before{
+  animation: crownBounce 760ms cubic-bezier(.2,.9,.2,1);
+  box-shadow: 0 14px 28px rgba(255,170,40,.24);
+}
+
+/* 4) 紙吹雪（軽量：疑似要素＋box-shadowで粒を量産） */
+@keyframes confettiFall {
+  0%   { transform: translateY(-14px) rotate(0deg); opacity: 0; }
+  10%  { opacity: .95; }
+  100% { transform: translateY(140px) rotate(220deg); opacity: 0; }
+}
+@keyframes confettiFall2 {
+  0%   { transform: translateY(-18px) rotate(0deg); opacity: 0; }
+  12%  { opacity: .92; }
+  100% { transform: translateY(160px) rotate(-260deg); opacity: 0; }
+}
+
+/* confetti コンテナをカード内に生成する想定（JSで .confetti を挿入） */
+.confetti{
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  overflow:hidden;
+}
+.confetti i{
+  position:absolute;
+  top: 10px;
+  width: 8px;
+  height: 10px;
+  border-radius: 2px;
+  opacity: 0;
+  will-change: transform, opacity;
+  filter: drop-shadow(0 6px 10px rgba(0,0,0,.08));
+}
+
+/* 色は「自然×祝福」：ゴールド・セージ・白 */
+.confetti i.c1{ background: var(--gold2); }
+.confetti i.c2{ background: rgba(47,111,94,.78); }
+.confetti i.c3{ background: rgba(255,255,255,.92); }
+.confetti i.c4{ background: rgba(106,165,143,.85); }
+.confetti i.c5{ background: rgba(255,211,94,.72); }
+
+/* 5) きら星（小さい光点） */
+@keyframes sparkleBurst {
+  0%   { transform: translateY(8px) scale(.75); opacity: 0; }
+  25%  { opacity: .95; }
+  100% { transform: translateY(-16px) scale(1.15); opacity: 0; }
+}
+.card--top.top-swap-ultra .meta{
+  position: relative;
+}
+.card--top.top-swap-ultra .meta::after{
+  content:"";
+  position:absolute;
+  top:-10px;
+  right:10px;
+  width:6px;
+  height:6px;
+  border-radius:999px;
+  background: var(--gold1);
+  box-shadow:
+    -14px 10px 0 rgba(255,255,255,.85),
+    -28px 18px 0 rgba(255,211,94,.78),
+    -8px 18px 0 rgba(106,165,143,.75),
+    -22px 6px 0 rgba(255,170,40,.72);
+  pointer-events:none;
+  animation: sparkleBurst 920ms ease-out;
+}
