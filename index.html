@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-
   <title>Wedding Photo Share</title>
 
   <link
@@ -11,15 +10,15 @@
     href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E%F0%9F%93%B7%3C/text%3E%3C/svg%3E"
   />
 
-  <!-- Cloudinary 早くする（接続の先張り） -->
+  <!-- Cloudinary 先張り -->
   <link rel="preconnect" href="https://res.cloudinary.com" crossorigin>
   <link rel="preconnect" href="https://api.cloudinary.com" crossorigin>
 
-  <!-- ✅ CSSは1本だけ（二重読み込み禁止） -->
-  <link rel="stylesheet" href="css/style.css?v=68" />
+  <!-- ✅ CSSは1本だけ -->
+  <link rel="stylesheet" href="css/style.css?v=67" />
 </head>
-<body>
 
+<body>
   <header class="header">
     <h1>📸 写真をシェアしよう</h1>
     <p>タップで高画質表示 / チェックで選択 → 一括保存</p>
@@ -35,7 +34,7 @@
 
     <section class="gallery" id="gallery"></section>
 
-    <!-- 無限スクロールの監視点（JSがこれを探します） -->
+    <!-- ✅ 無限スクロールの監視点（必須） -->
     <div id="sentinel" style="height:1px;"></div>
   </main>
 
@@ -61,13 +60,13 @@
       <div class="spinner" aria-hidden="true"></div>
       <div class="spinner-pulse" aria-hidden="true"></div>
 
-      <div class="overlay-title">処理中…</div>
+      <div id="uploadOverlayTitle" class="overlay-title">処理中…</div>
       <div id="uploadOverlaySub" class="overlay-sub">しばらくお待ちください</div>
       <div id="uploadOverlayProgress" class="overlay-progress"></div>
     </div>
   </div>
 
-  <!-- 高画質ビューア -->
+  <!-- 高画質ビューア（✅ 起動時は絶対 hidden のまま） -->
   <div id="viewer" class="viewer" hidden>
     <div class="viewer-backdrop" aria-hidden="true"></div>
 
@@ -97,7 +96,7 @@
     </div>
   </div>
 
-  <!-- ✅ JS -->
-  <script src="js/main.js?v=68"></script>
+  <!-- ✅ JSも1本だけ（deferでDOM後に動かす） -->
+  <script defer src="js/main.js?v=67"></script>
 </body>
 </html>
