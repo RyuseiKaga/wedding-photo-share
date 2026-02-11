@@ -885,9 +885,26 @@ function resortByLikesAndRerender() {
 async function loadList() {
   await withOverlay("読み込み中…", "いいねを取得して並び替えています", async () => {
     const res = await fetch(jsonUrl(), { cache: "no-store" });
-    if (!res.ok) throw new Error(`list json failed: ${res.status}`);
 
-    const data = await res.json();
+// ✅ listが無い(404) / 権限系(403) でも「0枚」として扱う
+if (res.status === 404 || res.status === 403) {
+  allPhotos = [];
+  $gallery.innerHTML = "";
+  uiById.clear();
+  renderIndex = 0;
+  return;
+}
+
+// 他のエラーは従来通り
+if (!res.ok) throw new Error(`list json failed: ${res.status}`);
+
+// ✅ JSONパースに失敗しても0枚扱い
+let data;
+try {
+  data = await res.json();
+} catch {
+  data = { resources: [] };
+}
     const resources = Array.isArray(data?.resources) ? data.resources : [];
 
     resources.sort((a, b) => (b.version || 0) - (a.version || 0));
