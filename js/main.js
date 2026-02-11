@@ -1,21 +1,19 @@
 /* =========================
-   CONFIG（ここだけ自分の値）
+   CONFIG
 ========================= */
 const CLOUD_NAME = "dmei50xsu";
-const LIST_NAME = "wedding_2026";          // ✅ .json無し
-const UPLOAD_PRESET = "wedding_unsigned";  // Cloudinary unsigned preset
-const UPLOAD_FOLDER = "";                  // 使ってなければ空でOK
+const LIST_NAME = "wedding_2026";          // .json無し
+const UPLOAD_PRESET = "wedding_unsigned";
+const UPLOAD_FOLDER = "";
 
-const LIKE_API = "https://wedding-like-api.karo2kai.workers.dev"; // Workers URL
+const LIKE_API = "https://wedding-like-api.karo2kai.workers.dev";
 
-// Cloudinary 変換
-const VIEW_TRANSFORM  = "c_limit,w_1800,q_auto:eco";                 // 高画質（体感劣化少なめ）
-const THUMB_TRANSFORM = "c_fill,w_420,h_420,q_auto:good,f_auto";     // サムネ
+const VIEW_TRANSFORM  = "c_limit,w_1800,q_auto:eco";
+const THUMB_TRANSFORM = "c_fill,w_420,h_420,q_auto:good,f_auto";
 
-// 制限（重くて落ちる対策）
-const UPLOAD_MAX_FILES_PER_BATCH = 8;    // まとめてアップロード上限（安定優先）
-const BULK_SAVE_MAX = 25;                // 一括保存の上限（端末制限対策）
-const HIRES_TIMEOUT_MS = 45000;          // 高画質プリロードのタイムアウト（長めに）
+const UPLOAD_MAX_FILES_PER_BATCH = 8;
+const BULK_SAVE_MAX = 25;
+const HIRES_TIMEOUT_MS = 45000;
 
 /* =========================
    DOM
@@ -45,29 +43,20 @@ const $viewerCopy = document.getElementById("viewerCopy");
 /* =========================
    STATE
 ========================= */
-let allPhotos = [];           // [{id, version, format, thumb, view, original}]
+let allPhotos = [];
 let renderIndex = 0;
 const RENDER_CHUNK = 18;
 
-const selected = new Set();  // photo.id
-const likes = new Map();     // photo.id -> number
+const selected = new Set();
+const likes = new Map();
 
 let io = null;
-let viewerOpenPhoto = null;
 let viewerLoadToken = 0;
-
-/* =========================
-   ✅ ユーザー操作があるまで viewer を絶対に開かない
-========================= */
-let userInteracted = false;
-function markInteracted() { userInteracted = true; }
-window.addEventListener("pointerdown", markInteracted, { once: true, passive: true });
-window.addEventListener("touchstart", markInteracted, { once: true, passive: true });
 
 /* =========================
    Utils
 ========================= */
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 function showOverlay(title, sub, progressText = "") {
   $overlayTitle.textContent = title || "処理中…";
@@ -113,24 +102,24 @@ function chunk(arr, size) {
 }
 
 /* =========================
-   Viewer（✅ 起動時/復帰時に絶対閉じる）
+   Viewer（class制御：初期は絶対 display:none）
 ========================= */
-function forceViewerClosedOnLoad() {
-  // token進めて、進行中のプリロード結果を無効化
-  viewerLoadToken++;
+function closeViewer(hard = false) {
+  $viewer.classList.remove("is-open");
+  $viewer.setAttribute("aria-hidden", "true");
 
-  $viewer.hidden = true;
   $viewerLoading.hidden = true;
   $viewerImg.removeAttribute("src");
-  $viewerImg.src = ""; // Safari対策
-  viewerOpenPhoto = null;
 
-  // hashが残ってる系の保険
-  if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+  if (hard) {
+    // “起動直後に勝手に出る” を物理的に潰す保険
+    viewerLoadToken++;
+  }
 }
 
-function closeViewer() {
-  forceViewerClosedOnLoad();
+function openViewerShell() {
+  $viewer.classList.add("is-open");
+  $viewer.setAttribute("aria-hidden", "false");
 }
 
 function preloadImage(url, timeoutMs = HIRES_TIMEOUT_MS) {
@@ -161,18 +150,12 @@ function preloadImage(url, timeoutMs = HIRES_TIMEOUT_MS) {
 }
 
 async function openViewer(photo) {
-  // ✅ ユーザーが触るまで絶対に開かない（自動オープン完全遮断）
-  if (!userInteracted) return;
-
   if (!photo) return;
-  viewerOpenPhoto = photo;
 
-  $viewer.hidden = false;
+  openViewerShell();
   $viewerLoading.hidden = false;
   $viewerImg.removeAttribute("src");
-  $viewerImg.src = "";
 
-  // ボタンは先に有効化（保存導線）
   $viewerOpen.href = photo.original;
   $viewerCopy.dataset.url = photo.original;
 
@@ -184,7 +167,6 @@ async function openViewer(photo) {
     if (token !== viewerLoadToken) return;
 
     $viewerImg.src = hiUrl;
-
     if ($viewerImg.decode) {
       try { await $viewerImg.decode(); } catch {}
     }
@@ -198,28 +180,13 @@ async function openViewer(photo) {
   }
 }
 
-/* ✅ iPhoneの「前回状態の復元」で viewer が勝手に出るのを潰す */
-window.addEventListener("pageshow", () => {
-  closeViewer();
-  // 連続で叩く（Safari復元で遅れて出ることがある）
-  setTimeout(closeViewer, 0);
-  setTimeout(closeViewer, 200);
-  setTimeout(closeViewer, 600);
-});
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") {
-    closeViewer();
-    setTimeout(closeViewer, 0);
-  }
-});
-
 /* =========================
-   Likes API（頑丈に）
+   Likes API
 ========================= */
 async function fetchLikesBatch(ids) {
   if (!ids.length) return;
 
-  // 1) POST /likes/batch
+  // POST /likes/batch
   try {
     const res = await fetch(`${LIKE_API}/likes/batch`, {
       method: "POST",
@@ -237,7 +204,7 @@ async function fetchLikesBatch(ids) {
     }
   } catch {}
 
-  // 2) GET /likes/batch?ids=...
+  // GET /likes/batch?ids=
   try {
     const qs = encodeURIComponent(ids.join(","));
     const res = await fetch(`${LIKE_API}/likes/batch?ids=${qs}`);
@@ -251,11 +218,21 @@ async function fetchLikesBatch(ids) {
   } catch {}
 }
 
+let resortTimer = null;
+function scheduleResort() {
+  if (resortTimer) return;
+  resortTimer = setTimeout(() => {
+    resortTimer = null;
+    resortByLikesAndRerender();
+  }, 700);
+}
+
 async function postLike(id) {
-  // 即時反映（UI）
+  // UI即反映
   const next = (likes.get(id) || 0) + 1;
   likes.set(id, next);
   updateLikeUI(id, next);
+  scheduleResort();
 
   // サーバ反映
   try {
@@ -275,12 +252,10 @@ async function postLike(id) {
       if (typeof serverCount === "number") {
         likes.set(id, serverCount);
         updateLikeUI(id, serverCount);
+        scheduleResort();
       }
-      scheduleResort();
     }
-  } catch {
-    // 通信失敗でもUIは維持
-  }
+  } catch {}
 }
 
 function updateLikeUI(id, count) {
@@ -289,14 +264,13 @@ function updateLikeUI(id, count) {
 }
 
 /* =========================
-   Render（CSSの .card/.tile 構造に合わせる）
+   Render（CSS構造に合わせる）
 ========================= */
 function buildPhotoCard(photo, isTop = false) {
   const card = document.createElement("div");
   card.className = isTop ? "card card--top" : "card";
   card.dataset.photoId = photo.id;
 
-  // tile
   const tile = document.createElement("div");
   tile.className = "tile";
 
@@ -334,7 +308,6 @@ function buildPhotoCard(photo, isTop = false) {
   tile.appendChild(hit);
   tile.appendChild(checkLabel);
 
-  // meta
   const meta = document.createElement("div");
   meta.className = "meta";
 
@@ -371,7 +344,6 @@ function renderNextChunk() {
 
 function setupInfiniteScroll() {
   if (io) io.disconnect();
-
   io = new IntersectionObserver((entries) => {
     for (const e of entries) {
       if (!e.isIntersecting) continue;
@@ -383,21 +355,9 @@ function setupInfiniteScroll() {
   io.observe($sentinel);
 }
 
-/* =========================
-   Sort: いいね多い順（TOP豪華）
-========================= */
-let resortTimer = null;
-function scheduleResort() {
-  if (resortTimer) return;
-  resortTimer = setTimeout(() => {
-    resortTimer = null;
-    resortByLikesAndRerender();
-  }, 800);
-}
-
+/* いいね順に並べてTOP豪華 */
 function resortByLikesAndRerender() {
   allPhotos.sort((a, b) => (likes.get(b.id) || 0) - (likes.get(a.id) || 0));
-
   $gallery.innerHTML = "";
   renderIndex = 0;
   renderNextChunk();
@@ -405,56 +365,43 @@ function resortByLikesAndRerender() {
 }
 
 /* =========================
-   Load Cloudinary list
+   Load list
 ========================= */
 async function loadList() {
   showOverlay("読み込み中…", "写真一覧を取得しています", "");
 
-  const url = jsonUrl();
-  const res = await fetch(url, { cache: "no-store" });
+  const res = await fetch(jsonUrl(), { cache: "no-store" });
   if (!res.ok) throw new Error(`list json failed: ${res.status}`);
 
   const data = await res.json();
   const resources = Array.isArray(data?.resources) ? data.resources : [];
 
-  // 最新順の保険（versionが新しいほど新しい）
   resources.sort((a, b) => (b.version || 0) - (a.version || 0));
 
   allPhotos = resources.map(r => {
-    const id = r.public_id;
-    const version = r.version;
-    const format = r.format || "jpg";
-    const meta = { public_id: id, version, format };
+    const meta = { public_id: r.public_id, version: r.version, format: r.format || "jpg" };
     return {
-      id,
-      version,
-      format,
+      id: r.public_id,
+      version: r.version,
+      format: r.format || "jpg",
       thumb: cldUrl(meta, THUMB_TRANSFORM),
       view: cldUrl(meta, VIEW_TRANSFORM),
       original: cldUrl(meta, ""),
     };
   });
 
-  // いいねをまとめて取得（多いときは分割）
+  // likes取得（分割）
   const ids = allPhotos.map(p => p.id);
-  const batches = chunk(ids, 100);
-  for (const b of batches) {
-    await fetchLikesBatch(b);
+  for (const batch of chunk(ids, 100)) {
+    await fetchLikesBatch(batch);
   }
 
-  // いいね順に並べ替え（TOP豪華）
-  allPhotos.sort((a, b) => (likes.get(b.id) || 0) - (likes.get(a.id) || 0));
-
-  $gallery.innerHTML = "";
-  renderIndex = 0;
-  renderNextChunk();
-  setupInfiniteScroll();
-
+  resortByLikesAndRerender();
   hideOverlay();
 }
 
 /* =========================
-   Upload（安定のため “数枚ずつ”）
+   Upload
 ========================= */
 async function uploadFiles(files) {
   if (!files || files.length === 0) return;
@@ -471,9 +418,8 @@ async function uploadFiles(files) {
   for (let i = 0; i < list.length; i++) {
     updateOverlay(`${i + 1} / ${list.length}`);
 
-    const file = list[i];
     const fd = new FormData();
-    fd.append("file", file);
+    fd.append("file", list[i]);
     fd.append("upload_preset", UPLOAD_PRESET);
     if (UPLOAD_FOLDER) fd.append("folder", UPLOAD_FOLDER);
 
@@ -488,14 +434,9 @@ async function uploadFiles(files) {
     }
 
     const data = await up.json();
-    uploaded.push({
-      public_id: data.public_id,
-      version: data.version,
-      format: data.format || "jpg",
-    });
+    uploaded.push({ public_id: data.public_id, version: data.version, format: data.format || "jpg" });
   }
 
-  // 即時反映（list jsonの反映待ちに依存しない）
   const newPhotos = uploaded.map(meta => ({
     id: meta.public_id,
     version: meta.version,
@@ -508,18 +449,13 @@ async function uploadFiles(files) {
   for (const p of newPhotos) likes.set(p.id, likes.get(p.id) || 0);
 
   allPhotos = [...newPhotos, ...allPhotos];
-  allPhotos.sort((a, b) => (likes.get(b.id) || 0) - (likes.get(a.id) || 0));
-
-  $gallery.innerHTML = "";
-  renderIndex = 0;
-  renderNextChunk();
-  setupInfiniteScroll();
+  resortByLikesAndRerender();
 
   hideOverlay();
 }
 
 /* =========================
-   Bulk Save（1ボタンで“準備”まで）
+   Bulk Save（1ボタンで“開く”まで）
 ========================= */
 async function bulkSaveSelected() {
   const ids = Array.from(selected);
@@ -531,8 +467,6 @@ async function bulkSaveSelected() {
   }
 
   showOverlay("一括保存の準備中…", "端末によっては保存操作が必要です", `${ids.length} 枚`);
-
-  // 自動DLは無理なので「原寸を順番に開く」方式
   hideOverlay();
 
   let opened = 0;
@@ -555,7 +489,6 @@ async function bulkSaveSelected() {
    Events
 ========================= */
 function bindEvents() {
-  // Upload
   $fileInput.addEventListener("change", async (e) => {
     const files = Array.from(e.target.files || []);
     e.target.value = "";
@@ -570,7 +503,6 @@ function bindEvents() {
     }
   });
 
-  // Bulk selection
   $clearSelection.addEventListener("click", () => {
     selected.clear();
     document.querySelectorAll('.tile-check input[type="checkbox"]').forEach(cb => (cb.checked = false));
@@ -587,16 +519,13 @@ function bindEvents() {
     }
   });
 
-  // Viewer close
-  $viewerClose.addEventListener("click", closeViewer);
-  $viewerBackdrop.addEventListener("click", closeViewer);
+  $viewerClose.addEventListener("click", () => closeViewer(true));
+  $viewerBackdrop.addEventListener("click", () => closeViewer(true));
 
-  // Esc close
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !$viewer.hidden) closeViewer();
+    if (e.key === "Escape") closeViewer(true);
   });
 
-  // URL copy
   $viewerCopy.addEventListener("click", async () => {
     const url = $viewerCopy.dataset.url || "";
     if (!url) return;
@@ -615,11 +544,9 @@ function bindEvents() {
    Boot
 ========================= */
 async function boot() {
-  // ✅ 起動時に強制クローズ（復元でも出さない）
-  forceViewerClosedOnLoad();
-  setTimeout(closeViewer, 0);
-  setTimeout(closeViewer, 200);
-  setTimeout(closeViewer, 600);
+  // ✅ ここで“絶対閉じる”（DOM後にもう一回保険）
+  closeViewer(true);
+  document.addEventListener("DOMContentLoaded", () => closeViewer(true));
 
   bindEvents();
 
