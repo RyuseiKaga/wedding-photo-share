@@ -10,12 +10,10 @@
     href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E%F0%9F%93%B7%3C/text%3E%3C/svg%3E"
   />
 
-  <!-- Cloudinary 先張り -->
   <link rel="preconnect" href="https://res.cloudinary.com" crossorigin>
   <link rel="preconnect" href="https://api.cloudinary.com" crossorigin>
 
-  <!-- ✅ CSSは1本だけ -->
-  <link rel="stylesheet" href="css/style.css?v=68" />
+  <link rel="stylesheet" href="css/style.css?v=67" />
 </head>
 
 <body>
@@ -33,12 +31,9 @@
     </section>
 
     <section class="gallery" id="gallery"></section>
-
-    <!-- ✅ 無限スクロールの監視点（必須） -->
     <div id="sentinel" style="height:1px;"></div>
   </main>
 
-  <!-- 下固定バー（選択/一括保存） -->
   <div id="bulkBar" class="bulkbar" hidden>
     <div class="bulkbar-left">
       <div class="bulkbar-count">
@@ -46,7 +41,6 @@
       </div>
       <button id="clearSelection" class="bulkbar-link" type="button">選択解除</button>
     </div>
-
     <div class="bulkbar-right">
       <button id="bulkSave" class="bulkbar-btn primary" type="button">
         一括保存（カメラロール）
@@ -54,7 +48,6 @@
     </div>
   </div>
 
-  <!-- 全画面オーバーレイ（初回ロード / アップロード / 一括保存準備） -->
   <div id="uploadOverlay" class="overlay" hidden>
     <div class="overlay-card" role="status" aria-live="polite">
       <div class="spinner" aria-hidden="true"></div>
@@ -66,8 +59,8 @@
     </div>
   </div>
 
-  <!-- 高画質ビューア（✅ 起動時は hidden） -->
-  <div id="viewer" class="viewer" hidden>
+  <!-- ✅ hidden ではなく class で制御する（初期は is-open なし = 非表示） -->
+  <div id="viewer" class="viewer" aria-hidden="true">
     <div class="viewer-backdrop" aria-hidden="true"></div>
 
     <div class="viewer-sheet" role="dialog" aria-modal="true">
@@ -96,7 +89,6 @@
     </div>
   </div>
 
-  <!-- ✅ JSも1本だけ -->
-  <script defer src="js/main.js?v=68"></script>
+  <script defer src="js/main.js?v=67"></script>
 </body>
 </html>
