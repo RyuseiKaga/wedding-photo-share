@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-
   <title>Wedding Photo Share</title>
 
   <link
@@ -11,13 +10,15 @@
     href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E%F0%9F%93%B7%3C/text%3E%3C/svg%3E"
   />
 
-  <!-- Cloudinary 早くする（接続の先張り） -->
+  <!-- Cloudinary 先張り -->
   <link rel="preconnect" href="https://res.cloudinary.com" crossorigin>
+  <link rel="preconnect" href="https://api.cloudinary.com" crossorigin>
 
+  <!-- ✅ CSSは1回だけ -->
   <link rel="stylesheet" href="css/style.css?v=65" />
 </head>
-<body>
 
+<body>
   <header class="header">
     <h1>📸 写真をシェアしよう</h1>
     <p>タップで高画質表示 / チェックで選択 → 一括保存</p>
@@ -29,10 +30,13 @@
         写真をアップロード
         <input id="fileInput" type="file" accept="image/*" multiple hidden />
       </label>
+      <div class="upload-help">※ 数枚ずつアップロードが安定します</div>
     </section>
 
-    <!-- ✅ main.js がここにカードを追加します -->
     <section class="gallery" id="gallery"></section>
+
+    <!-- 無限スクロール用の番兵 -->
+    <div id="sentinel" style="height: 1px;"></div>
   </main>
 
   <!-- 下固定バー（選択/一括保存） -->
@@ -43,7 +47,6 @@
       </div>
       <button id="clearSelection" class="bulkbar-link" type="button">選択解除</button>
     </div>
-
     <div class="bulkbar-right">
       <button id="bulkSave" class="bulkbar-btn primary" type="button">
         一括保存（カメラロール）
@@ -56,14 +59,13 @@
     <div class="overlay-card" role="status" aria-live="polite">
       <div class="spinner" aria-hidden="true"></div>
       <div class="spinner-pulse" aria-hidden="true"></div>
-
-      <div class="overlay-title">処理中…</div>
+      <div class="overlay-title" id="uploadOverlayTitle">処理中…</div>
       <div id="uploadOverlaySub" class="overlay-sub">しばらくお待ちください</div>
       <div id="uploadOverlayProgress" class="overlay-progress"></div>
     </div>
   </div>
 
-  <!-- 高画質ビューア -->
+  <!-- 高画質ビューア（✅ hiddenが正解。起動時に勝手に開かない） -->
   <div id="viewer" class="viewer" hidden>
     <div class="viewer-backdrop" aria-hidden="true"></div>
 
@@ -93,9 +95,7 @@
     </div>
   </div>
 
-  <!-- ✅ main.js は body最後で読み込む -->
-  <link rel="stylesheet" href="css/style.css?v=66" />
+  <!-- ✅ JSは body末尾で1回だけ -->
   <script src="js/main.js?v=66"></script>
-
 </body>
 </html>
