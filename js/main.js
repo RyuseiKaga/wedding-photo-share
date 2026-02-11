@@ -8,22 +8,24 @@ const UPLOAD_FOLDER = "";
 
 const LIKE_API = "https://wedding-like-api.karo2kai.workers.dev";
 
-// 速さ優先（体感ほぼ変わらない範囲で軽く）
+// 体感ほぼ変えず軽く（保存用＝view を使う）
 const VIEW_TRANSFORM  = "c_limit,w_1600,q_auto:good,f_auto";
 const THUMB_TRANSFORM = "c_fill,w_420,h_420,q_auto:good,f_auto";
 
-const HIRES_TIMEOUT_MS = 60000;
+// いいね取得
 const LIKES_BATCH_SIZE = 120;
 
+// 描画
 const RENDER_CHUNK = 18;
 const RESORT_DEBOUNCE_MS = 700;
 
-// いいね：反映漏れ防止のため一瞬ロック
+// いいね：反映漏れ防止のため連打禁止
 const LIKE_LOCK_MS = 900;
 
-// 一括保存：Share優先
-const BULK_SHARE_TITLE = "Wedding Photos";
-const BULK_SHARE_TEXT  = "写真を保存してください";
+// ✅ 裏ダウンロード（選択時に仕込む）
+const PREFETCH_CONCURRENCY = 3;       // 並列DL数（上げると速いが不安定になりやすい）
+const PREFETCH_TIMEOUT_MS = 90000;    // 1枚のDLタイムアウト
+const PREFETCH_USE_ORIGINAL = false;  // trueにすると原寸を取りに行く（重くなりがち）
 
 /* =========================
    DOM
@@ -61,23 +63,31 @@ const likes = new Map();    // photo.id -> number
 
 let io = null;
 let viewerLoadToken = 0;
-
 let resortTimer = null;
 
-// id -> unlock time(ms)
-const likeLocks = new Map();
+const likeLocks = new Map(); // id -> unlock time(ms)
 
-// id -> { card, likeBtn, countEl, cb }
+// id -> { card, likeBtn, countEl, cb, photo }
 const uiById = new Map();
+
+/**
+ * ✅ 裏DL（prefetch）
+ *  - entries: id -> { state, file, error, controller, url }
+ *  - queue: ids待ち行列
+ */
+const prefetch = {
+  entries: new Map(), // id -> entry
+  queue: [],
+  active: 0,
+  doneCount: 0,       // 完了枚数（選択内）
+};
 
 /* =========================
    Hardening: [hidden] を強制で効かせる
 ========================= */
 (function enforceHiddenCSS() {
   const st = document.createElement("style");
-  st.textContent = `
-    [hidden]{ display:none !important; }
-  `;
+  st.textContent = `[hidden]{ display:none !important; }`;
   document.head.appendChild(st);
 })();
 
@@ -98,23 +108,6 @@ function cldUrl({ public_id, version, format }, transform = "") {
   return `${base}${tr}${v}${public_id}${ext}`;
 }
 
-function setBulkBar() {
-  const n = selected.size;
-  $selectedCount.textContent = String(n);
-  $bulkBar.hidden = (n === 0);
-}
-
-function setBulkSaveButtonState(state) {
-  if (!$bulkSave) return;
-  if (state === "preparing") {
-    $bulkSave.disabled = true;
-    $bulkSave.textContent = "準備中…";
-  } else {
-    $bulkSave.disabled = false;
-    $bulkSave.textContent = "一括保存（カメラロール）";
-  }
-}
-
 function isLikelyTouchDevice() {
   return ("ontouchstart" in window) || (navigator.maxTouchPoints > 0);
 }
@@ -126,7 +119,7 @@ function chunk(arr, size) {
 }
 
 /* =========================
-   Overlay（絶対に消す）
+   Overlay（任意：使わないならそのままでOK）
 ========================= */
 function showOverlay(title, sub, progressText = "") {
   if (!$overlay) return;
@@ -135,10 +128,8 @@ function showOverlay(title, sub, progressText = "") {
   $overlayProgress.textContent = progressText || "";
 
   $overlay.hidden = false;
-  // ✅ CSSが壊れてても表示できるように
   $overlay.style.display = "flex";
   $overlay.style.pointerEvents = "auto";
-
   document.body.classList.add("is-busy");
 }
 
@@ -149,12 +140,9 @@ function updateOverlay(progressText) {
 
 function forceHideOverlay() {
   if (!$overlay) return;
-
-  // ✅ hidden + display:none を両方叩く（CSS破壊対策）
   $overlay.hidden = true;
   $overlay.style.display = "none";
   $overlay.style.pointerEvents = "none";
-
   document.body.classList.remove("is-busy");
 }
 
@@ -163,7 +151,6 @@ async function withOverlay(title, sub, taskFn) {
   try {
     return await taskFn();
   } finally {
-    // ✅ 2フレーム後にも念押し（描画タイミングで残るバグ潰し）
     forceHideOverlay();
     requestAnimationFrame(() => requestAnimationFrame(forceHideOverlay));
     setTimeout(forceHideOverlay, 50);
@@ -171,44 +158,95 @@ async function withOverlay(title, sub, taskFn) {
 }
 
 /* =========================
-   Viewer（勝手に出ないガード）
+   Bulk bar state（✅ ここが肝）
+========================= */
+function getPrefetchStatsForSelected() {
+  let total = selected.size;
+  let ready = 0;
+  let downloading = 0;
+  let error = 0;
+
+  for (const id of selected) {
+    const e = prefetch.entries.get(id);
+    if (!e) continue;
+    if (e.state === "ready") ready++;
+    else if (e.state === "downloading" || e.state === "queued") downloading++;
+    else if (e.state === "error") error++;
+  }
+  return { total, ready, downloading, error };
+}
+
+function setBulkBar() {
+  const n = selected.size;
+  $selectedCount.textContent = String(n);
+  $bulkBar.hidden = (n === 0);
+
+  // 一括保存ボタン制御
+  if (!$bulkSave) return;
+
+  if (n === 0) {
+    $bulkSave.disabled = true;
+    $bulkSave.textContent = "一括保存（カメラロール）";
+    return;
+  }
+
+  const st = getPrefetchStatsForSelected();
+
+  // ✅ ダウンロード中は非活性
+  if (st.downloading > 0) {
+    $bulkSave.disabled = true;
+    $bulkSave.textContent = `準備中… ${st.ready}/${st.total}`;
+    return;
+  }
+
+  // ✅ 失敗があるとき（再試行導線を残す）
+  if (st.error > 0) {
+    // 失敗があっても保存させたいならここを enabled にしてOK。
+    // 今回は「戻ったり」が嫌なので、失敗があるなら再準備を促す。
+    $bulkSave.disabled = false;
+    $bulkSave.textContent = `一括保存（再準備あり）`;
+    return;
+  }
+
+  // ✅ 全部readyなら有効
+  $bulkSave.disabled = (st.ready !== st.total);
+  $bulkSave.textContent = "一括保存（カメラロール）";
+}
+
+/* =========================
+   Viewer（勝手に出ない）
 ========================= */
 function hardCloseViewer() {
   if (!$viewer) return;
   $viewer.hidden = true;
-  $viewer.style.display = "none"; // BFCache/復帰対策
-
+  $viewer.style.display = "none";
   if ($viewerLoading) $viewerLoading.hidden = true;
   if ($viewerImg) $viewerImg.removeAttribute("src");
-
   viewerLoadToken++;
   if (location.hash) history.replaceState(null, "", location.pathname + location.search);
 }
 
-function closeViewer() { hardCloseViewer(); }
-
 function bindLifecycleGuards() {
-  // ✅ 復帰時に overlay が残る・viewerが出る対策
   window.addEventListener("pageshow", () => {
     hardCloseViewer();
     forceHideOverlay();
-    setBulkSaveButtonState("idle");
+    setBulkBar();
   });
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) {
       hardCloseViewer();
       forceHideOverlay();
-      setBulkSaveButtonState("idle");
+      setBulkBar();
     }
   });
   window.addEventListener("focus", () => {
     hardCloseViewer();
     forceHideOverlay();
-    setBulkSaveButtonState("idle");
+    setBulkBar();
   });
 }
 
-function preloadImage(url, timeoutMs = HIRES_TIMEOUT_MS) {
+function preloadImage(url, timeoutMs = 60000) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     let done = false;
@@ -251,7 +289,7 @@ async function openViewer(photo) {
   const hiUrl = photo.view;
 
   try {
-    await preloadImage(hiUrl, HIRES_TIMEOUT_MS);
+    await preloadImage(hiUrl, 60000);
     if (token !== viewerLoadToken) return;
 
     if ($viewerImg) {
@@ -262,7 +300,6 @@ async function openViewer(photo) {
     }
   } catch (e) {
     if (token !== viewerLoadToken) return;
-    console.warn("viewer preload failed:", e);
     if ($viewerImg) $viewerImg.src = photo.thumb;
   } finally {
     if (token !== viewerLoadToken) return;
@@ -276,7 +313,6 @@ async function openViewer(photo) {
 async function fetchLikesBatch(ids) {
   if (!ids.length) return;
 
-  // POST /likes/batch
   try {
     const res = await fetch(`${LIKE_API}/likes/batch`, {
       method: "POST",
@@ -293,11 +329,8 @@ async function fetchLikesBatch(ids) {
       }
       return;
     }
-  } catch (e) {
-    console.warn("likes batch POST failed", e);
-  }
+  } catch {}
 
-  // GET /likes/batch?ids=...
   try {
     const qs = encodeURIComponent(ids.join(","));
     const res = await fetch(`${LIKE_API}/likes/batch?ids=${qs}`);
@@ -309,9 +342,7 @@ async function fetchLikesBatch(ids) {
       if (typeof v === "number") likes.set(id, v);
       else if (!likes.has(id)) likes.set(id, 0);
     }
-  } catch (e) {
-    console.warn("likes batch GET failed", e);
-  }
+  } catch {}
 }
 
 function updateLikeUI(id, count) {
@@ -377,12 +408,8 @@ async function postLike(id) {
         updateLikeUI(id, serverCount);
       }
       scheduleResort();
-    } else {
-      console.warn("like failed:", res.status);
     }
-  } catch (e) {
-    console.warn("like error:", e);
-  } finally {
+  } catch {} finally {
     const remaining = Math.max(0, (likeLocks.get(id) || 0) - Date.now());
     setTimeout(() => {
       likeLocks.delete(id);
@@ -392,11 +419,197 @@ async function postLike(id) {
 }
 
 /* =========================
+   Prefetch（✅ 選択時に裏DL）
+========================= */
+function getPhotoById(id) {
+  return allPhotos.find(p => p.id === id);
+}
+
+function getPrefetchUrl(photo) {
+  if (!photo) return "";
+  if (PREFETCH_USE_ORIGINAL) return photo.original;
+  return photo.view; // 基本は view を保存用に
+}
+
+function guessExtFromBlob(blob) {
+  const t = (blob?.type || "").toLowerCase();
+  if (t.includes("png")) return "png";
+  if (t.includes("webp")) return "webp";
+  if (t.includes("heic") || t.includes("heif")) return "heic";
+  return "jpg";
+}
+
+async function fetchBlobWithTimeout(url, timeoutMs, controller) {
+  const ctrl = controller || new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal, cache: "no-store" });
+    if (!res.ok) throw new Error(`fetch ${res.status}`);
+    return await res.blob();
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+function ensurePrefetchEntry(id) {
+  let e = prefetch.entries.get(id);
+  if (!e) {
+    e = { id, state: "idle", file: null, error: null, controller: null, url: "" };
+    prefetch.entries.set(id, e);
+  }
+  return e;
+}
+
+function enqueuePrefetch(id) {
+  const photo = getPhotoById(id);
+  if (!photo) return;
+
+  const e = ensurePrefetchEntry(id);
+  if (e.state === "ready" || e.state === "downloading" || e.state === "queued") return;
+
+  e.state = "queued";
+  e.error = null;
+  e.file = null;
+  e.url = getPrefetchUrl(photo);
+
+  prefetch.queue.push(id);
+  pumpPrefetchQueue();
+  setBulkBar();
+}
+
+function abortPrefetchIfAny(id) {
+  const e = prefetch.entries.get(id);
+  if (!e) return;
+
+  // queueから除外
+  if (e.state === "queued") {
+    prefetch.queue = prefetch.queue.filter(x => x !== id);
+    e.state = "idle";
+  }
+
+  // downloading中ならabort
+  if (e.state === "downloading" && e.controller) {
+    try { e.controller.abort(); } catch {}
+    e.controller = null;
+    e.state = "idle";
+  }
+
+  // readyなら保持してもいいが、メモリ節約で解放
+  if (e.state === "ready") {
+    e.file = null;
+    e.state = "idle";
+  }
+  setBulkBar();
+}
+
+async function runPrefetchOne(id) {
+  const photo = getPhotoById(id);
+  const e = ensurePrefetchEntry(id);
+  if (!photo) {
+    e.state = "error";
+    e.error = "photo missing";
+    return;
+  }
+  if (!selected.has(id)) {
+    e.state = "idle";
+    return;
+  }
+
+  e.state = "downloading";
+  e.error = null;
+  e.controller = new AbortController();
+
+  try {
+    const blob = await fetchBlobWithTimeout(e.url, PREFETCH_TIMEOUT_MS, e.controller);
+
+    // 選択解除されてたら捨てる
+    if (!selected.has(id)) {
+      e.file = null;
+      e.state = "idle";
+      return;
+    }
+
+    const ext = guessExtFromBlob(blob);
+    const safeIdx = Array.from(selected).indexOf(id) + 1;
+    const name = `photo_${safeIdx}_${id.slice(-6)}.${ext}`;
+
+    e.file = new File([blob], name, { type: blob.type || "image/jpeg" });
+    e.state = "ready";
+  } catch (err) {
+    if (err?.name === "AbortError") {
+      e.state = "idle";
+      e.error = "aborted";
+    } else {
+      e.state = "error";
+      e.error = String(err?.message || err);
+      console.warn("prefetch failed:", id, err);
+    }
+  } finally {
+    e.controller = null;
+  }
+}
+
+function pumpPrefetchQueue() {
+  while (prefetch.active < PREFETCH_CONCURRENCY && prefetch.queue.length > 0) {
+    const id = prefetch.queue.shift();
+    const e = prefetch.entries.get(id);
+    if (!e) continue;
+    if (!selected.has(id)) { e.state = "idle"; continue; }
+
+    prefetch.active++;
+    runPrefetchOne(id)
+      .catch(() => {})
+      .finally(() => {
+        prefetch.active--;
+        // 次のキュー
+        pumpPrefetchQueue();
+        // ボタン状態更新
+        setBulkBar();
+      });
+  }
+}
+
+/* =========================
+   Share（✅ 事前DL済みfilesを使う）
+========================= */
+async function shareFilesIfPossible(files) {
+  if (!navigator.canShare || !navigator.share) return false;
+  try {
+    if (!navigator.canShare({ files })) return false;
+    await navigator.share({
+      title: "Wedding Photos",
+      text: "写真を保存してください",
+      files,
+    });
+    return true;
+  } catch (e) {
+    console.warn("share canceled/failed:", e);
+    return false;
+  }
+}
+
+function buildFilesFromPrefetchSelected() {
+  const ids = Array.from(selected);
+  const files = [];
+  const missing = [];
+  const errors = [];
+
+  for (const id of ids) {
+    const e = prefetch.entries.get(id);
+    if (!e) { missing.push(id); continue; }
+    if (e.state === "ready" && e.file) files.push(e.file);
+    else if (e.state === "error") errors.push(id);
+    else missing.push(id);
+  }
+  return { files, missing, errors };
+}
+
+/* =========================
    Render
 ========================= */
 function buildPhotoCard(photo, isTop = false) {
   const card = document.createElement("div");
-  card.className = isTop ? "card card--top" : "card";
+  card.className = isTop ? "card card--top like-glow-scope" : "card like-glow-scope";
   card.dataset.photoId = photo.id;
 
   const tile = document.createElement("div");
@@ -420,9 +633,17 @@ function buildPhotoCard(photo, isTop = false) {
   const cb = document.createElement("input");
   cb.type = "checkbox";
   cb.checked = selected.has(photo.id);
+
   cb.addEventListener("change", () => {
-    if (cb.checked) selected.add(photo.id);
-    else selected.delete(photo.id);
+    if (cb.checked) {
+      selected.add(photo.id);
+      // ✅ 選択した瞬間に裏DL開始
+      enqueuePrefetch(photo.id);
+    } else {
+      selected.delete(photo.id);
+      // ✅ 選択解除されたらDLを止める＆メモリ解放
+      abortPrefetchIfAny(photo.id);
+    }
     setBulkBar();
   });
 
@@ -455,11 +676,13 @@ function buildPhotoCard(photo, isTop = false) {
   card.appendChild(tile);
   card.appendChild(meta);
 
-  uiById.set(photo.id, { card, likeBtn, countEl, cb });
+  uiById.set(photo.id, { card, likeBtn, countEl, cb, photo });
 
-  // lock復元
   const locked = (likeLocks.get(photo.id) || 0) > Date.now();
   if (locked) setLikeButtonDisabled(photo.id, true);
+
+  // 選択済みならprefetch状態に合わせる（再描画対策）
+  if (selected.has(photo.id)) enqueuePrefetch(photo.id);
 
   return card;
 }
@@ -505,7 +728,7 @@ function resortByLikesAndRerender() {
 }
 
 /* =========================
-   Load List（ここが 211/211 残りの本丸）
+   Load List
 ========================= */
 async function loadList() {
   await withOverlay("読み込み中…", "いいねを取得して並び替えています", async () => {
@@ -515,6 +738,7 @@ async function loadList() {
     const data = await res.json();
     const resources = Array.isArray(data?.resources) ? data.resources : [];
 
+    // 最新順保険
     resources.sort((a, b) => (b.version || 0) - (a.version || 0));
 
     allPhotos = resources.map(r => {
@@ -532,19 +756,20 @@ async function loadList() {
       };
     });
 
+    // likes batch
     const ids = allPhotos.map(p => p.id);
     const batches = chunk(ids, LIKES_BATCH_SIZE);
 
     for (let i = 0; i < batches.length; i++) {
       updateOverlay(`${Math.min((i + 1) * LIKES_BATCH_SIZE, ids.length)} / ${ids.length}`);
       await fetchLikesBatch(batches[i]);
-      await sleep(0); // iOS固まり防止
+      await sleep(0);
     }
 
-    // いいね順に並べ替え
+    // like順に並べ替え
     allPhotos.sort((a, b) => (likes.get(b.id) || 0) - (likes.get(a.id) || 0));
 
-    // 描画（スクロールで読み込み）
+    // 描画（画像はlazyでスクロール読み込み）
     $gallery.innerHTML = "";
     uiById.clear();
     renderIndex = 0;
@@ -555,80 +780,113 @@ async function loadList() {
 }
 
 /* =========================
-   Bulk Save（Share優先）
+   Upload
 ========================= */
-async function buildFetchBlob(url, timeoutMs = 90000) {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, { signal: ctrl.signal, cache: "no-store" });
-    if (!res.ok) throw new Error(`fetch ${res.status}`);
-    return await res.blob();
-  } finally {
-    clearTimeout(t);
-  }
-}
+async function uploadFiles(files) {
+  if (!files || files.length === 0) return;
 
-async function shareFilesIfPossible(files) {
-  if (!navigator.canShare || !navigator.share) return false;
-  try {
-    if (!navigator.canShare({ files })) return false;
-    await navigator.share({
-      title: BULK_SHARE_TITLE,
-      text: BULK_SHARE_TEXT,
-      files,
-    });
-    return true;
-  } catch (e) {
-    console.warn("share canceled/failed:", e);
-    return false;
-  }
-}
+  await withOverlay("アップロード中…", "しばらくお待ちください", async () => {
+    const uploaded = [];
+    for (let i = 0; i < files.length; i++) {
+      updateOverlay(`${i + 1} / ${files.length}`);
 
-async function bulkSaveSelected() {
-  const ids = Array.from(selected);
-  if (ids.length === 0) return;
+      const file = files[i];
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("upload_preset", UPLOAD_PRESET);
+      if (UPLOAD_FOLDER) fd.append("folder", UPLOAD_FOLDER);
 
-  setBulkSaveButtonState("preparing");
+      const up = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+        method: "POST",
+        body: fd,
+      });
 
-  try {
-    const files = [];
-
-    await withOverlay("一括保存の準備中…", "画像をまとめて用意しています", async () => {
-      for (let i = 0; i < ids.length; i++) {
-        updateOverlay(`${i + 1} / ${ids.length}`);
-        const id = ids[i];
-        const photo = allPhotos.find(p => p.id === id);
-        if (!photo) continue;
-
-        // view（軽め高画質）をBlob化してshareへ
-        const blob = await buildFetchBlob(photo.view, 90000);
-        const ext = (blob.type && blob.type.includes("png")) ? "png" : "jpg";
-        files.push(new File([blob], `photo_${i + 1}.${ext}`, { type: blob.type || "image/jpeg" }));
-
-        await sleep(0);
+      if (!up.ok) {
+        const t = await up.text().catch(() => "");
+        throw new Error(`upload failed: ${up.status} ${t}`);
       }
+
+      const data = await up.json();
+      uploaded.push({ public_id: data.public_id, version: data.version, format: data.format || "jpg" });
+    }
+
+    const newPhotos = uploaded.map(meta => {
+      const m = { public_id: meta.public_id, version: meta.version, format: meta.format };
+      return {
+        id: meta.public_id,
+        version: meta.version,
+        format: meta.format,
+        thumb: cldUrl(m, THUMB_TRANSFORM),
+        view: cldUrl(m, VIEW_TRANSFORM),
+        original: cldUrl(m, ""),
+      };
     });
 
-    // Share優先
-    if (files.length > 0) {
-      const ok = await shareFilesIfPossible(files);
-      if (ok) return;
-    }
+    for (const p of newPhotos) if (!likes.has(p.id)) likes.set(p.id, 0);
 
-    // フォールバック：順に開く
-    if (isLikelyTouchDevice()) {
-      alert("共有で一括保存できない端末でした。代わりにタブで画像を開きます。\n各画像を長押しして「写真に追加/画像を保存」してください。");
+    allPhotos = [...newPhotos, ...allPhotos];
+    allPhotos.sort((a, b) => (likes.get(b.id) || 0) - (likes.get(a.id) || 0));
+
+    $gallery.innerHTML = "";
+    uiById.clear();
+    renderIndex = 0;
+    renderNextChunk();
+    setupInfiniteScroll();
+  });
+}
+
+/* =========================
+   Bulk Save（✅ 準備済みfilesで共有）
+========================= */
+async function bulkSaveSelected() {
+  const n = selected.size;
+  if (n === 0) return;
+
+  // まず状態確認：未完了があれば何もしない（ボタンが非活性の想定だが保険）
+  const st = getPrefetchStatsForSelected();
+  if (st.downloading > 0) {
+    alert(`まだ準備中です… ${st.ready}/${st.total}`);
+    return;
+  }
+
+  // 失敗があるなら再準備（＝再DL）
+  if (st.error > 0) {
+    if (confirm("一部の画像の準備に失敗しました。再準備しますか？")) {
+      // error のものだけ再キュー
+      for (const id of selected) {
+        const e = prefetch.entries.get(id);
+        if (e?.state === "error") {
+          e.state = "idle";
+          enqueuePrefetch(id);
+        }
+      }
+      setBulkBar();
     }
-    for (const id of ids) {
-      const photo = allPhotos.find(p => p.id === id);
-      if (!photo) continue;
-      window.open(photo.view, "_blank", "noopener");
-      await sleep(380);
-    }
-  } finally {
-    forceHideOverlay();
-    setBulkSaveButtonState("idle");
+    return;
+  }
+
+  const { files, missing } = buildFilesFromPrefetchSelected();
+  if (missing.length > 0) {
+    // 念のため：missingなら準備し直す
+    for (const id of missing) enqueuePrefetch(id);
+    setBulkBar();
+    alert("準備が不足していました。もう少し待ってから一括保存してください。");
+    return;
+  }
+
+  // ✅ 共有（iOSの共有シート→画像を保存）
+  const ok = await shareFilesIfPossible(files);
+  if (ok) return;
+
+  // フォールバック：順に開く
+  if (isLikelyTouchDevice()) {
+    alert("共有で一括保存できない端末でした。代わりにタブで画像を開きます。\n各画像を長押しして「写真に追加/画像を保存」してください。");
+  }
+  for (const id of Array.from(selected)) {
+    const photo = getPhotoById(id);
+    if (!photo) continue;
+    window.open(photo.view, "_blank", "noopener");
+    await sleep(350);
   }
 }
 
@@ -636,61 +894,14 @@ async function bulkSaveSelected() {
    Events
 ========================= */
 function bindEvents() {
+  // Upload
   $fileInput?.addEventListener("change", async (e) => {
     const files = Array.from(e.target.files || []);
     e.target.value = "";
     if (!files.length) return;
 
     try {
-      // upload不要ならここ削除してOK（今は維持）
-      await withOverlay("アップロード中…", "しばらくお待ちください", async () => {
-        const uploaded = [];
-        for (let i = 0; i < files.length; i++) {
-          updateOverlay(`${i + 1} / ${files.length}`);
-
-          const file = files[i];
-          const fd = new FormData();
-          fd.append("file", file);
-          fd.append("upload_preset", UPLOAD_PRESET);
-          if (UPLOAD_FOLDER) fd.append("folder", UPLOAD_FOLDER);
-
-          const up = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
-            method: "POST",
-            body: fd,
-          });
-
-          if (!up.ok) {
-            const t = await up.text().catch(() => "");
-            throw new Error(`upload failed: ${up.status} ${t}`);
-          }
-
-          const data = await up.json();
-          uploaded.push({ public_id: data.public_id, version: data.version, format: data.format || "jpg" });
-        }
-
-        const newPhotos = uploaded.map(meta => {
-          const m = { public_id: meta.public_id, version: meta.version, format: meta.format };
-          return {
-            id: meta.public_id,
-            version: meta.version,
-            format: meta.format,
-            thumb: cldUrl(m, THUMB_TRANSFORM),
-            view: cldUrl(m, VIEW_TRANSFORM),
-            original: cldUrl(m, ""),
-          };
-        });
-
-        for (const p of newPhotos) if (!likes.has(p.id)) likes.set(p.id, 0);
-
-        allPhotos = [...newPhotos, ...allPhotos];
-        allPhotos.sort((a, b) => (likes.get(b.id) || 0) - (likes.get(a.id) || 0));
-
-        $gallery.innerHTML = "";
-        uiById.clear();
-        renderIndex = 0;
-        renderNextChunk();
-        setupInfiniteScroll();
-      });
+      await uploadFiles(files);
     } catch (err) {
       console.error(err);
       forceHideOverlay();
@@ -698,32 +909,39 @@ function bindEvents() {
     }
   });
 
+  // Selection clear
   $clearSelection?.addEventListener("click", () => {
-    selected.clear();
+    for (const id of Array.from(selected)) {
+      selected.delete(id);
+      abortPrefetchIfAny(id);
+    }
     for (const [, ui] of uiById) {
       if (ui?.cb) ui.cb.checked = false;
     }
     setBulkBar();
   });
 
+  // Bulk save
   $bulkSave?.addEventListener("click", async () => {
     try {
       await bulkSaveSelected();
     } catch (e) {
       console.error(e);
-      forceHideOverlay();
-      setBulkSaveButtonState("idle");
       alert("一括保存に失敗しました。通信が弱い場合は時間を置いて再試行してください。");
+    } finally {
+      setBulkBar();
     }
   });
 
-  $viewerClose?.addEventListener("click", closeViewer);
-  $viewerBackdrop?.addEventListener("click", closeViewer);
+  // Viewer close
+  $viewerClose?.addEventListener("click", hardCloseViewer);
+  $viewerBackdrop?.addEventListener("click", hardCloseViewer);
 
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && $viewer && !$viewer.hidden) closeViewer();
+    if (e.key === "Escape" && $viewer && !$viewer.hidden) hardCloseViewer();
   });
 
+  // URL copy
   $viewerCopy?.addEventListener("click", async () => {
     const url = $viewerCopy.dataset.url || "";
     if (!url) return;
@@ -744,7 +962,6 @@ function bindEvents() {
 async function boot() {
   hardCloseViewer();
   forceHideOverlay();
-  setBulkSaveButtonState("idle");
 
   bindEvents();
   bindLifecycleGuards();
