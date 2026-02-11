@@ -1,14 +1,27 @@
 /* =========================
-   Base
+   Base (Natural / Minimal)
 ========================= */
 :root{
-  --bg:#ffffff;
-  --text:#111827;
-  --muted:#6b7280;
+  /* neutrals */
+  --bg: #fbfbf8;            /* warm white */
+  --surface: #ffffff;
+  --text: #1f2937;          /* slate-800 */
+  --muted: #6b7280;         /* slate-500 */
+  --border: rgba(31,41,55,.10);
 
-  --pink1:#ff4fa3;
-  --pink2:#ff8ab3;
-  --shadow: 0 18px 50px rgba(0,0,0,.10);
+  /* nature accents */
+  --accent: #2f6f5e;        /* deep sage */
+  --accent2: #6aa58f;       /* light sage */
+  --accentSoft: rgba(47,111,94,.12);
+
+  /* like */
+  --like: #b91c1c;          /* muted red */
+  --likeSoft: rgba(185,28,28,.18);
+
+  /* shadows */
+  --shadowSm: 0 10px 24px rgba(0,0,0,.06);
+  --shadowMd: 0 18px 50px rgba(0,0,0,.10);
+
   --radius: 18px;
 }
 
@@ -16,14 +29,17 @@
 html,body{ height:100%; }
 body{
   margin:0;
-  background:var(--bg);
+  background: radial-gradient(1200px 700px at 50% -100px, rgba(47,111,94,.10), transparent 60%),
+              var(--bg);
   color:var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans JP", Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
+
 a{ color:inherit; text-decoration:none; }
 button{ font:inherit; }
+img{ max-width:100%; display:block; }
 
 /* JSで忙しい時の抑止（オーバーレイ時） */
 body.is-busy{
@@ -57,20 +73,22 @@ body.is-busy{
   justify-content:center;
   padding: 10px 16px 18px;
 }
+
 .upload-button{
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  padding: 14px 22px;
+  padding: 13px 20px;
   border-radius: 999px;
   color:#fff;
   font-weight:800;
   letter-spacing:.02em;
-  background: linear-gradient(135deg, var(--pink1), var(--pink2));
-  box-shadow: 0 16px 36px rgba(255,79,163,.25);
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  box-shadow: 0 14px 28px rgba(47,111,94,.22);
   cursor:pointer;
   user-select:none;
   -webkit-tap-highlight-color: transparent;
+  border: 1px solid rgba(255,255,255,.22);
 }
 
 /* =========================
@@ -82,6 +100,7 @@ body.is-busy{
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
 }
+
 @media (min-width: 560px){
   .gallery{
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -94,24 +113,29 @@ body.is-busy{
    Card / Tile
 ========================= */
 .card{
-  background:#fff;
+  background: rgba(255,255,255,.92);
   border-radius: 16px;
   overflow:hidden;
-  box-shadow: 0 10px 30px rgba(0,0,0,.06);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadowSm);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
 .tile{
   position:relative;
   width:100%;
-  aspect-ratio: 1 / 1; /* 表示はスクエア */
-  background:#f3f4f6;
+  aspect-ratio: 1 / 1;
+  background: linear-gradient(135deg, rgba(47,111,94,.08), rgba(0,0,0,.02));
 }
+
 .tile-img{
   position:absolute;
   inset:0;
   width:100%;
   height:100%;
-  object-fit: cover; /* 表示は正方形にトリミング */
+  object-fit: cover;
+  transform: scale(1.001); /* subtle anti-gap */
 }
 
 /* タップ領域 */
@@ -137,16 +161,18 @@ body.is-busy{
 
   padding: 8px 10px;
   border-radius: 999px;
-  background: rgba(255,255,255,.86);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgba(255,255,255,.82);
+  border: 1px solid rgba(31,41,55,.10);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   font-size:13px;
-  color:#111;
+  color: var(--text);
 }
 .tile-check input{
   width:18px;
   height:18px;
   margin:0;
+  accent-color: var(--accent);
 }
 
 /* 下のメタ */
@@ -162,27 +188,46 @@ body.is-busy{
 .like-btn{
   border:0;
   background:transparent;
-  padding: 6px 6px;
-  border-radius: 10px;
+  padding: 6px 8px;
+  border-radius: 12px;
   cursor:pointer;
   -webkit-tap-highlight-color: transparent;
-  color:#111;
-  font-weight:700;
+  color: var(--text);
+  font-weight:800;
   display:inline-flex;
   align-items:center;
-  gap:6px;
+  gap:8px;
 }
-.like-btn:active{ transform: scale(.98); }
-.like-count{ color:#0f172a; }
 
-/* ✅ トップ写真を豪華にする */
+.like-btn:active{
+  transform: scale(.98);
+}
+
+.like-btn[disabled]{
+  opacity:.55;
+  cursor:not-allowed;
+}
+
+.like-count{
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ❤の見た目を落ち着かせる（JSが文字で❤出しててもOK） */
+.like-btn::first-letter{
+  color: var(--like);
+}
+
+/* ✅ TOP写真（豪華だけど派手すぎない） */
 .card--top{
   position:relative;
-  box-shadow: 0 22px 60px rgba(255,79,163,.22);
-  outline: 3px solid rgba(255,79,163,.25);
+  border-color: rgba(47,111,94,.35);
+  box-shadow: 0 22px 60px rgba(47,111,94,.20);
+  outline: 2px solid rgba(47,111,94,.14);
 }
+
 .card--top::before{
-  content:"👑 TOP";
+  content:"TOP";
   position:absolute;
   top:10px;
   right:10px;
@@ -192,68 +237,9 @@ body.is-busy{
   color:#fff;
   font-weight:900;
   font-size:12px;
-  background: linear-gradient(135deg, var(--pink1), var(--pink2));
-  box-shadow: 0 12px 24px rgba(255,79,163,.25);
-}
-
-/* =========================
-   Like button - glow animation（ふわっと光る）
-========================= */
-
-/* 押した瞬間の“ふわっと光る” */
-.like-btn{
-  position: relative;
-  isolation: isolate;
-  transition: transform .08s ease, filter .18s ease, opacity .18s ease;
-}
-
-/* 光の輪 */
-.like-btn::after{
-  content:"";
-  position:absolute;
-  inset:-10px;
-  border-radius: 14px;
-  background: radial-gradient(
-    closest-side,
-    rgba(255,79,163,.38),
-    rgba(255,138,179,.18),
-    rgba(255,79,163,0)
-  );
-  opacity: 0;
-  transform: scale(.85);
-  filter: blur(2px);
-  z-index:-1;
-  pointer-events:none;
-}
-
-/* ✅ 押した瞬間に発光 */
-.like-btn:active::after{
-  opacity: 1;
-  transform: scale(1);
-  animation: likeGlow .45s ease-out both;
-}
-
-/* ✅ サーバ反映中（disabled）の間は薄く脈打つ */
-.like-btn:disabled{
-  cursor: default;
-  opacity: .6;
-  filter: saturate(1.05);
-  box-shadow: 0 0 0 2px rgba(255,79,163,.14) inset;
-}
-.like-btn:disabled::after{
-  opacity: .65;
-  transform: scale(1);
-  animation: likePulse 1.0s ease-in-out infinite;
-}
-
-@keyframes likeGlow{
-  0%   { opacity: 0; transform: scale(.82); filter: blur(2px); }
-  35%  { opacity: 1; transform: scale(1.03); filter: blur(2px); }
-  100% { opacity: 0; transform: scale(1.12); filter: blur(6px); }
-}
-@keyframes likePulse{
-  0%,100% { opacity: .35; filter: blur(3px); }
-  50%     { opacity: .75; filter: blur(1px); }
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  box-shadow: 0 10px 20px rgba(47,111,94,.18);
+  letter-spacing:.04em;
 }
 
 /* =========================
@@ -267,26 +253,36 @@ body.is-busy{
   z-index:40;
 
   padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
-  background: rgba(255,255,255,.92);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-top: 1px solid rgba(0,0,0,.06);
+  background: rgba(255,255,255,.88);
+  border-top: 1px solid rgba(31,41,55,.10);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 
   display:flex;
   justify-content:space-between;
   align-items:center;
   gap:10px;
 }
-.bulkbar-left{ display:flex; align-items:center; gap:10px; }
-.bulkbar-count{ font-weight:800; }
+
+.bulkbar-left{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+.bulkbar-count{
+  font-weight:900;
+}
+
 .bulkbar-link{
   border:0;
   background:transparent;
   color: var(--muted);
-  font-weight:700;
+  font-weight:800;
   text-decoration: underline;
   cursor:pointer;
 }
+
 .bulkbar-btn{
   border:0;
   border-radius: 14px;
@@ -295,14 +291,18 @@ body.is-busy{
   cursor:pointer;
   white-space:nowrap;
 }
+
 .bulkbar-btn.primary{
   color:#fff;
-  background: linear-gradient(135deg, var(--pink1), var(--pink2));
-  box-shadow: 0 14px 30px rgba(255,79,163,.22);
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  box-shadow: 0 14px 30px rgba(47,111,94,.22);
+  border: 1px solid rgba(255,255,255,.18);
 }
-.bulkbar-btn:disabled{
-  opacity:.7;
-  cursor: default;
+
+.bulkbar-btn[disabled]{
+  opacity:.55;
+  cursor:not-allowed;
+  box-shadow:none;
 }
 
 /* =========================
@@ -316,31 +316,38 @@ body.is-busy{
   align-items:center;
   justify-content:center;
   padding: 20px;
-  background: rgba(0,0,0,.35);
+  background: rgba(17,24,39,.35);
 }
+
 .overlay-card{
   width:min(360px, 92vw);
-  background:#fff;
+  background: rgba(255,255,255,.92);
   border-radius: 18px;
   padding: 18px 16px;
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadowMd);
   text-align:center;
+  border: 1px solid rgba(31,41,55,.10);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
+
 .overlay-title{
   font-weight:900;
   font-size:16px;
   margin-top:10px;
 }
+
 .overlay-sub{
   color:var(--muted);
   font-size:13px;
   margin-top:6px;
 }
+
 .overlay-progress{
   margin-top:10px;
   font-size:12px;
-  color:#111;
-  font-weight:800;
+  color:var(--text);
+  font-weight:900;
 }
 
 /* Spinner */
@@ -348,23 +355,29 @@ body.is-busy{
   width:42px;
   height:42px;
   border-radius:50%;
-  border: 4px solid #e5e7eb;
-  border-top-color: var(--pink1);
+  border: 4px solid rgba(31,41,55,.12);
+  border-top-color: var(--accent);
   margin: 0 auto;
   animation: spin 1s linear infinite;
 }
-.spinner.small{ width:28px; height:28px; border-width: 3px; }
+.spinner.small{
+  width:28px;
+  height:28px;
+  border-width: 3px;
+}
+
 .spinner-pulse{
   width:10px; height:10px;
   border-radius:50%;
-  background: rgba(255,79,163,.35);
+  background: rgba(47,111,94,.22);
   margin: 10px auto 0;
   animation: pulse 1.2s ease-in-out infinite;
 }
+
 @keyframes spin{ to{ transform: rotate(360deg); } }
 @keyframes pulse{
-  0%,100%{ transform: scale(1); opacity:.4; }
-  50%{ transform: scale(1.9); opacity:.15; }
+  0%,100%{ transform: scale(1); opacity:.5; }
+  50%{ transform: scale(1.9); opacity:.18; }
 }
 
 /* =========================
@@ -379,22 +392,26 @@ body.is-busy{
   justify-content:center;
   padding: 16px;
 }
+
 .viewer-backdrop{
   position:absolute;
   inset:0;
-  background: rgba(0,0,0,.50);
+  background: rgba(17,24,39,.55);
 }
+
 .viewer-sheet{
   position:relative;
   width:min(520px, 96vw);
   max-height: calc(100vh - 32px);
-  background:#fff;
+  background: rgba(255,255,255,.96);
   border-radius: 18px;
   overflow:hidden;
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadowMd);
+  border: 1px solid rgba(31,41,55,.10);
   display:flex;
   flex-direction:column;
 }
+
 .viewer-close{
   position:absolute;
   top:10px;
@@ -403,18 +420,25 @@ body.is-busy{
   width:36px;
   height:36px;
   border-radius: 999px;
-  border:0;
-  background: rgba(255,255,255,.92);
+  border: 1px solid rgba(31,41,55,.10);
+  background: rgba(255,255,255,.90);
   cursor:pointer;
   font-size:18px;
+  color: var(--text);
 }
-.viewer-media{ position:relative; background:#111; }
+
+.viewer-media{
+  position:relative;
+  background:#0b1220;
+}
+
 .viewer-media img{
   width:100%;
   height:auto;
   display:block;
-  background:#111;
+  background:#0b1220;
 }
+
 .viewer-loading{
   position:absolute;
   inset:0;
@@ -423,34 +447,67 @@ body.is-busy{
   justify-content:center;
   flex-direction:column;
   gap:10px;
-  background: rgba(255,255,255,.55);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background: rgba(255,255,255,.62);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
-.viewer-loading-text{ font-weight:900; color:#111; }
+
+.viewer-loading-text{
+  font-weight:900;
+  color: var(--text);
+}
 
 .viewer-actions{
   display:flex;
   gap:10px;
   padding: 12px;
 }
+
 .viewer-btn{
   flex:1;
-  border:0;
+  border: 1px solid rgba(31,41,55,.10);
   border-radius: 14px;
   padding: 12px 10px;
   font-weight:900;
   text-align:center;
   cursor:pointer;
-  background:#f3f4f6;
+  background: rgba(31,41,55,.05);
+  color: var(--text);
 }
+
 .viewer-btn.primary{
   color:#fff;
-  background: linear-gradient(135deg, var(--pink1), var(--pink2));
+  border: 1px solid rgba(255,255,255,.12);
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
 }
+
 .viewer-note{
   padding: 0 12px 14px;
   color: var(--muted);
   font-size: 12px;
   line-height: 1.5;
+}
+
+/* =========================
+   Like glow / subtle highlight (for "ふわっと光る演出")
+   JSが .like-glow を付ける想定（付いてなくても無害）
+========================= */
+@keyframes likeGlow {
+  0%   { box-shadow: 0 0 0 rgba(47,111,94,0); transform: translateZ(0); }
+  30%  { box-shadow: 0 0 0 10px rgba(47,111,94,.12); }
+  100% { box-shadow: 0 0 0 22px rgba(47,111,94,0); }
+}
+
+.like-glow{
+  animation: likeGlow 650ms ease-out;
+}
+
+/* カード自体を少しだけハイライトさせたい場合（JSが .card-glow を付与） */
+@keyframes cardGlow {
+  0%   { box-shadow: var(--shadowSm); }
+  35%  { box-shadow: 0 22px 60px rgba(47,111,94,.24); }
+  100% { box-shadow: var(--shadowSm); }
+}
+.card-glow{
+  animation: cardGlow 700ms ease-out;
 }
