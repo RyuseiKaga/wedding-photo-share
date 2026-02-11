@@ -1,14 +1,13 @@
 /* =========================
-   CONFIG（ここだけ自分の値）
+   CONFIG
 ========================= */
 const CLOUD_NAME = "dmei50xsu";
-const LIST_NAME = "wedding_2026";          // Cloudinary list の名前（wedding_2026.json）
-const UPLOAD_PRESET = "wedding_unsigned";  // Cloudinary unsigned preset
-const UPLOAD_FOLDER = "";                  // 使ってなければ空でOK（例: "wedding_2026"）
+const LIST_NAME = "wedding_2026";
+const UPLOAD_PRESET = "wedding_unsigned";
+const UPLOAD_FOLDER = "";
 
-const LIKE_API = "https://wedding-like-api.karo2kai.workers.dev"; // ←あなたのWorkers URL
+const LIKE_API = "https://wedding-like-api.karo2kai.workers.dev";
 
-// Cloudinary 変換（あなたが preset で通したやつ）
 const VIEW_TRANSFORM = "c_limit,w_1800,q_auto:eco";
 const THUMB_TRANSFORM = "c_fill,w_420,h_420,q_auto:good,f_auto";
 
@@ -17,7 +16,6 @@ const THUMB_TRANSFORM = "c_fill,w_420,h_420,q_auto:good,f_auto";
 ========================= */
 const $gallery = document.getElementById("gallery");
 const $fileInput = document.getElementById("fileInput");
-const $sentinel = document.getElementById("sentinel");
 
 const $bulkBar = document.getElementById("bulkBar");
 const $selectedCount = document.getElementById("selectedCount");
@@ -25,18 +23,27 @@ const $clearSelection = document.getElementById("clearSelection");
 const $bulkSave = document.getElementById("bulkSave");
 
 const $overlay = document.getElementById("uploadOverlay");
-const $overlayTitle = document.getElementById("uploadOverlayTitle");
+// HTMLに id="uploadOverlayTitle" が無いのでフォールバックで拾う
+const $overlayTitle = document.getElementById("uploadOverlayTitle") || $overlay?.querySelector(".overlay-title");
 const $overlaySub = document.getElementById("uploadOverlaySub");
 const $overlayProgress = document.getElementById("uploadOverlayProgress");
 
 const $viewer = document.getElementById("viewer");
-const $viewerBackdrop = $viewer.querySelector(".viewer-backdrop");
-const $viewerSheet = $viewer.querySelector(".viewer-sheet");
+const $viewerBackdrop = $viewer?.querySelector(".viewer-backdrop");
 const $viewerClose = document.getElementById("viewerClose");
 const $viewerImg = document.getElementById("viewerImg");
 const $viewerLoading = document.getElementById("viewerLoading");
 const $viewerOpen = document.getElementById("viewerOpen");
 const $viewerCopy = document.getElementById("viewerCopy");
+
+/* sentinel（HTMLになくてもJSで作る） */
+let $sentinel = document.getElementById("sentinel");
+if (!$sentinel) {
+  $sentinel = document.createElement("div");
+  $sentinel.id = "sentinel";
+  $sentinel.style.height = "1px";
+  $gallery.after($sentinel);
+}
 
 /* =========================
    STATE
@@ -58,18 +65,18 @@ let viewerLoadToken = 0;
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 function showOverlay(title, sub, progressText = "") {
-  $overlayTitle.textContent = title || "処理中…";
-  $overlaySub.textContent = sub || "しばらくお待ちください";
-  $overlayProgress.textContent = progressText || "";
+  if ($overlayTitle) $overlayTitle.textContent = title || "処理中…";
+  if ($overlaySub) $overlaySub.textContent = sub || "しばらくお待ちください";
+  if ($overlayProgress) $overlayProgress.textContent = progressText || "";
   $overlay.hidden = false;
-  document.documentElement.style.overflow = "hidden";
+  document.body.classList.add("is-busy");
 }
 function updateOverlay(progressText) {
-  $overlayProgress.textContent = progressText || "";
+  if ($overlayProgress) $overlayProgress.textContent = progressText || "";
 }
 function hideOverlay() {
   $overlay.hidden = true;
-  document.documentElement.style.overflow = "";
+  document.body.classList.remove("is-busy");
 }
 
 function jsonUrl() {
@@ -84,10 +91,6 @@ function cldUrl({ public_id, version, format }, transform = "") {
   return `${base}${tr}${v}${public_id}${ext}`;
 }
 
-function safeText(s) {
-  return (s ?? "").toString();
-}
-
 function setBulkBar() {
   const n = selected.size;
   $selectedCount.textContent = String(n);
@@ -99,16 +102,16 @@ function isLikelyTouchDevice() {
 }
 
 /* =========================
-   Viewer (NO auto open)
+   Viewer
 ========================= */
 function forceViewerClosedOnLoad() {
-  // 起動時に絶対閉じる
+  // 起動時に絶対閉じる（hiddenが効かない環境対策はCSSの[hidden]で）
   $viewer.hidden = true;
   $viewerLoading.hidden = true;
   $viewerImg.removeAttribute("src");
   viewerOpenPhoto = null;
 
-  // #photo=... みたいなハッシュが残ってると自動オープン実装がある場合があるので消す
+  // 変なhashが残っている場合に備えて消す
   if (location.hash) {
     history.replaceState(null, "", location.pathname + location.search);
   }
@@ -152,36 +155,28 @@ async function openViewer(photo) {
   if (!photo) return;
   viewerOpenPhoto = photo;
 
-  // viewerはタップ時のみ開く
   $viewer.hidden = false;
   $viewerLoading.hidden = false;
   $viewerImg.removeAttribute("src");
 
-  // ボタンは先に埋める
   $viewerOpen.href = photo.original;
   $viewerCopy.dataset.url = photo.original;
 
-  // 競合防止（連打で古い読み込みが反映されないように）
   const token = ++viewerLoadToken;
   const hiUrl = photo.view;
 
   try {
     await preloadImage(hiUrl, 30000);
-    if (token !== viewerLoadToken) return; // 新しい表示が始まってたら無視
+    if (token !== viewerLoadToken) return;
 
-    // ここで初めて src をセット
     $viewerImg.src = hiUrl;
-
-    // decode() が使えるなら待つ（描画タイミング安定）
     if ($viewerImg.decode) {
       try { await $viewerImg.decode(); } catch {}
     }
   } catch (e) {
-    // 高画質が死んでも原寸ボタンで逃がす
     console.warn("viewer preload failed:", e);
     if (token !== viewerLoadToken) return;
-    // フォールバックでサムネでも見えるように
-    $viewerImg.src = photo.thumb;
+    $viewerImg.src = photo.thumb; // フォールバック
   } finally {
     if (token !== viewerLoadToken) return;
     $viewerLoading.hidden = true;
@@ -194,14 +189,12 @@ async function openViewer(photo) {
 async function fetchLikesBatch(ids) {
   if (!ids.length) return;
 
-  // POST /likes/batch を優先（あなたが言ってたやつ）
   try {
     const res = await fetch(`${LIKE_API}/likes/batch`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ ids }),
     });
-
     if (res.ok) {
       const data = await res.json();
       const obj = data?.likes || data || {};
@@ -215,7 +208,7 @@ async function fetchLikesBatch(ids) {
     console.warn("POST /likes/batch failed:", e);
   }
 
-  // フォールバック：GET /likes/batch?ids=a,b,c
+  // fallback GET
   try {
     const qs = encodeURIComponent(ids.join(","));
     const res = await fetch(`${LIKE_API}/likes/batch?ids=${qs}`);
@@ -232,13 +225,11 @@ async function fetchLikesBatch(ids) {
 }
 
 async function postLike(id) {
-  // ローカル即反映（何回押せてもOK）
+  // 何回押してもOK：即ローカル反映
   const next = (likes.get(id) || 0) + 1;
   likes.set(id, next);
   updateLikeUI(id, next);
 
-  // サーバ反映
-  // 1) POST /likes {id} を試す
   try {
     const res = await fetch(`${LIKE_API}/likes`, {
       method: "POST",
@@ -247,38 +238,17 @@ async function postLike(id) {
     });
     if (res.ok) {
       const data = await res.json();
-      // {likes: n} / {count:n} / 直接 number など、形が違っても吸収
       const serverCount =
         (typeof data?.likes === "number" && data.likes) ||
         (typeof data?.count === "number" && data.count) ||
-        (typeof data?.value === "number" && data.value) ||
         (typeof data === "number" && data);
-
       if (typeof serverCount === "number") {
         likes.set(id, serverCount);
         updateLikeUI(id, serverCount);
       }
-      return;
     }
   } catch (e) {
     console.warn("POST /likes failed:", e);
-  }
-
-  // 2) だめなら POST /likes/{id}
-  try {
-    const res = await fetch(`${LIKE_API}/likes/${encodeURIComponent(id)}`, { method: "POST" });
-    if (!res.ok) return;
-    const data = await res.json();
-    const serverCount =
-      (typeof data?.likes === "number" && data.likes) ||
-      (typeof data?.count === "number" && data.count) ||
-      (typeof data === "number" && data);
-    if (typeof serverCount === "number") {
-      likes.set(id, serverCount);
-      updateLikeUI(id, serverCount);
-    }
-  } catch (e) {
-    console.warn("POST /likes/:id failed:", e);
   }
 }
 
@@ -288,27 +258,33 @@ function updateLikeUI(id, count) {
 }
 
 /* =========================
-   Render
+   Render (CSSに合わせる)
 ========================= */
 function buildPhotoCard(photo) {
   const card = document.createElement("div");
-  card.className = "photo-card";
+  card.className = "card";
   card.dataset.photoId = photo.id;
 
-  // 画像
-  const imgWrap = document.createElement("button");
-  imgWrap.type = "button";
-  imgWrap.className = "photo-thumb";
-  imgWrap.setAttribute("aria-label", "写真を開く");
-  imgWrap.style.backgroundImage = `url("${photo.thumb}")`;
+  // tile
+  const tile = document.createElement("div");
+  tile.className = "tile";
 
-  imgWrap.addEventListener("click", () => {
-    openViewer(photo);
-  });
+  const img = document.createElement("img");
+  img.className = "tile-img";
+  img.src = photo.thumb;
+  img.alt = "photo";
+  img.loading = "lazy";
+  img.decoding = "async";
 
-  // 選択
-  const selectRow = document.createElement("label");
-  selectRow.className = "photo-select";
+  const hit = document.createElement("button");
+  hit.type = "button";
+  hit.className = "tile-hit";
+  hit.setAttribute("aria-label", "写真を開く");
+  hit.addEventListener("click", () => openViewer(photo));
+
+  const checkLabel = document.createElement("label");
+  checkLabel.className = "tile-check";
+
   const cb = document.createElement("input");
   cb.type = "checkbox";
   cb.checked = selected.has(photo.id);
@@ -318,32 +294,40 @@ function buildPhotoCard(photo) {
     setBulkBar();
   });
 
-  const cbText = document.createElement("span");
-  cbText.textContent = "選択";
-  selectRow.appendChild(cb);
-  selectRow.appendChild(cbText);
+  const checkText = document.createElement("span");
+  checkText.textContent = "選択";
 
-  // いいね
-  const likeRow = document.createElement("div");
-  likeRow.className = "photo-like";
+  checkLabel.appendChild(cb);
+  checkLabel.appendChild(checkText);
+
+  tile.appendChild(img);
+  tile.appendChild(hit);
+  tile.appendChild(checkLabel);
+
+  // meta (like)
+  const meta = document.createElement("div");
+  meta.className = "meta";
 
   const likeBtn = document.createElement("button");
   likeBtn.type = "button";
   likeBtn.className = "like-btn";
-  likeBtn.innerHTML = "❤";
   likeBtn.addEventListener("click", () => postLike(photo.id));
+
+  const heart = document.createElement("span");
+  heart.textContent = "❤";
 
   const likeCount = document.createElement("span");
   likeCount.className = "like-count";
   likeCount.dataset.likeCount = photo.id;
   likeCount.textContent = String(likes.get(photo.id) || 0);
 
-  likeRow.appendChild(likeBtn);
-  likeRow.appendChild(likeCount);
+  likeBtn.appendChild(heart);
+  likeBtn.appendChild(likeCount);
 
-  card.appendChild(imgWrap);
-  card.appendChild(selectRow);
-  card.appendChild(likeRow);
+  meta.appendChild(likeBtn);
+
+  card.appendChild(tile);
+  card.appendChild(meta);
 
   return card;
 }
@@ -366,7 +350,6 @@ function setupInfiniteScroll() {
   io = new IntersectionObserver((entries) => {
     for (const e of entries) {
       if (!e.isIntersecting) continue;
-      // 追加描画
       const hasMore = renderNextChunk();
       if (!hasMore) io.disconnect();
     }
@@ -386,7 +369,6 @@ async function loadList() {
   const data = await res.json();
 
   const resources = Array.isArray(data?.resources) ? data.resources : [];
-  // 最新が上になるように（version or created_at があればそれを優先）
   resources.sort((a, b) => (b.version || 0) - (a.version || 0));
 
   allPhotos = resources.map(r => {
@@ -401,11 +383,11 @@ async function loadList() {
       format,
       thumb: cldUrl(meta, THUMB_TRANSFORM),
       view: cldUrl(meta, VIEW_TRANSFORM),
-      original: cldUrl(meta, ""), // 原寸（変換なし）
+      original: cldUrl(meta, ""),
     };
   });
 
-  // いいねを先にまとめて取得（最初の分だけでもOK）
+  // いいね先読み
   const firstIds = allPhotos.slice(0, Math.min(120, allPhotos.length)).map(p => p.id);
   await fetchLikesBatch(firstIds);
 
@@ -454,8 +436,6 @@ async function uploadFiles(files) {
     });
   }
 
-  // アップロード直後は list json 反映に時間がかかることがある
-  // なので ①今回分はその場で先頭に差し込む ②あとで list を再読込
   const newPhotos = uploaded.map(meta => ({
     id: meta.public_id,
     version: meta.version,
@@ -465,22 +445,16 @@ async function uploadFiles(files) {
     original: cldUrl(meta, ""),
   }));
 
-  // 新規を先頭に
+  // 先頭に追加（list反映待ちしなくても見える）
   allPhotos = [...newPhotos, ...allPhotos];
-  // いいね初期値
   for (const p of newPhotos) likes.set(p.id, likes.get(p.id) || 0);
 
-  // 画面を描画し直し（軽く）
   $gallery.innerHTML = "";
   renderIndex = 0;
   renderNextChunk();
   setupInfiniteScroll();
 
   hideOverlay();
-
-  // list json が追いつくまで少し待って再取得（任意）
-  // await sleep(1500);
-  // try { await loadList(); } catch {}
 }
 
 /* =========================
@@ -490,15 +464,11 @@ async function bulkSaveSelected() {
   const ids = Array.from(selected);
   if (ids.length === 0) return;
 
-  // iOS/ブラウザ制限：複数タブや自動DLがブロックされやすい
+  // iOS制限で完全自動は難しいので、原寸を順に開く方式
   showOverlay("一括保存の準備中…", "端末によっては複数回タップが必要です", `${ids.length} 枚`);
-
-  // まず原寸URLを順に開く（ポップアップブロックされる場合あり）
-  // なるべくブロック回避のため少し間隔を空ける
-  let opened = 0;
-
   hideOverlay();
 
+  let opened = 0;
   for (const id of ids) {
     const photo = allPhotos.find(p => p.id === id);
     if (!photo) continue;
@@ -509,11 +479,8 @@ async function bulkSaveSelected() {
 
   if (opened === 0) {
     alert("保存対象が見つかりませんでした。");
-  } else {
-    // iOS向け説明
-    if (isLikelyTouchDevice()) {
-      alert("タブで原寸画像を開きました。各画像を長押しして「写真に追加/画像を保存」してください。");
-    }
+  } else if (isLikelyTouchDevice()) {
+    alert("タブで原寸画像を開きました。各画像を長押しして「写真に追加/画像を保存」してください。");
   }
 }
 
@@ -524,7 +491,6 @@ function bindEvents() {
   // Upload
   $fileInput.addEventListener("change", async (e) => {
     const files = Array.from(e.target.files || []);
-    // 同じファイルを再度選べるようにクリア
     e.target.value = "";
     if (!files.length) return;
 
@@ -541,7 +507,7 @@ function bindEvents() {
   $clearSelection.addEventListener("click", () => {
     selected.clear();
     // 画面上のチェックも外す
-    document.querySelectorAll('.photo-select input[type="checkbox"]').forEach(cb => cb.checked = false);
+    document.querySelectorAll('.tile-check input[type="checkbox"]').forEach(cb => cb.checked = false);
     setBulkBar();
   });
 
@@ -574,7 +540,6 @@ function bindEvents() {
       await sleep(800);
       $viewerCopy.textContent = "URLコピー";
     } catch {
-      // フォールバック
       prompt("コピーしてね", url);
     }
   });
@@ -584,9 +549,7 @@ function bindEvents() {
    Boot
 ========================= */
 async function boot() {
-  // ✅ 絶対に起動時にviewerを閉じる（自動オープン禁止）
   forceViewerClosedOnLoad();
-
   bindEvents();
 
   try {
