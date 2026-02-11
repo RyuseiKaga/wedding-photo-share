@@ -8,8 +8,20 @@ const UPLOAD_FOLDER = "";
 
 const LIKE_API = "https://wedding-like-api.karo2kai.workers.dev";
 
+// Cloudinary transforms
 const VIEW_TRANSFORM = "c_limit,w_1800,q_auto:eco";
 const THUMB_TRANSFORM = "c_fill,w_420,h_420,q_auto:good,f_auto";
+
+// Timeouts（ここで“エラーまでの時間”を伸ばす）
+const VIEW_PRELOAD_TIMEOUT_MS = 60000;     // 60秒（高画質表示）
+const UPLOAD_TIMEOUT_MS = 120000;          // 120秒（アップロード）
+const LIST_TIMEOUT_MS = 30000;             // 30秒（一覧JSON取得）
+
+// 端末側の軽量化（アップロード高速化）
+// 劣化が分からない程度：最大長辺2000px / JPEG品質0.82
+const ENABLE_CLIENT_COMPRESS = true;
+const COMPRESS_MAX_EDGE = 2000;
+const COMPRESS_JPEG_QUALITY = 0.82;
 
 /* =========================
    DOM
@@ -34,7 +46,7 @@ const $viewerLoading = document.getElementById("viewerLoading");
 const $viewerOpen = document.getElementById("viewerOpen");
 const $viewerCopy = document.getElementById("viewerCopy");
 
-/* sentinel（HTMLに無くても作る：無限スクロール用） */
+/* sentinel（HTMLに無くても作る） */
 let $sentinel = document.getElementById("sentinel");
 if (!$sentinel) {
   $sentinel = document.createElement("div");
@@ -58,13 +70,12 @@ let viewerLoadToken = 0;
 let userGesture = false;
 
 /* =========================
-   SAFETY (自動起動禁止 & iOS復元対策)
+   SAFETY (viewer自動起動禁止 & iOS復元対策)
 ========================= */
 function forceViewerClosed() {
-  if (!$viewer) return;
   $viewer.hidden = true;
-  if ($viewerLoading) $viewerLoading.hidden = true;
-  $viewerImg?.removeAttribute("src");
+  $viewerLoading.hidden = true;
+  $viewerImg.removeAttribute("src");
 }
 window.addEventListener("pageshow", () => {
   forceViewerClosed();
@@ -82,12 +93,12 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 function showOverlay(sub = "しばらくお待ちください", progress = "") {
   $overlay.hidden = false;
-  if ($overlaySub) $overlaySub.textContent = sub;
-  if ($overlayProgress) $overlayProgress.textContent = progress;
+  $overlaySub.textContent = sub;
+  $overlayProgress.textContent = progress;
   document.body.classList.add("is-busy");
 }
 function updateOverlay(progress = "") {
-  if ($overlayProgress) $overlayProgress.textContent = progress;
+  $overlayProgress.textContent = progress;
 }
 function hideOverlay() {
   $overlay.hidden = true;
@@ -116,6 +127,17 @@ function isLikelyTouchDevice() {
   return ("ontouchstart" in window) || (navigator.maxTouchPoints > 0);
 }
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = 30000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(id);
+  }
+}
+
 /* =========================
    Viewer
 ========================= */
@@ -123,7 +145,7 @@ function closeViewer() {
   forceViewerClosed();
 }
 
-async function preloadImage(url, timeoutMs = 30000) {
+async function preloadImage(url, timeoutMs) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     let done = false;
@@ -151,7 +173,7 @@ async function preloadImage(url, timeoutMs = 30000) {
 }
 
 async function openViewer(photo) {
-  if (!userGesture) return; // 自動起動完全禁止
+  if (!userGesture) return; // 自動起動禁止
   if (!photo) return;
 
   const token = ++viewerLoadToken;
@@ -164,8 +186,9 @@ async function openViewer(photo) {
   $viewerCopy.dataset.url = photo.original;
 
   try {
-    await preloadImage(photo.view, 30000);
+    await preloadImage(photo.view, VIEW_PRELOAD_TIMEOUT_MS);
     if (token !== viewerLoadToken) return;
+
     $viewerImg.src = photo.view;
     if ($viewerImg.decode) {
       try { await $viewerImg.decode(); } catch {}
@@ -181,12 +204,11 @@ async function openViewer(photo) {
 }
 
 /* =========================
-   Likes (堅牢版)
+   Likes（堅牢版）
 ========================= */
 async function fetchLikesBatch(ids) {
   if (!ids.length) return;
 
-  // POST /likes/batch を優先
   try {
     const res = await fetch(`${LIKE_API}/likes/batch`, {
       method: "POST",
@@ -206,7 +228,6 @@ async function fetchLikesBatch(ids) {
     console.warn("POST /likes/batch failed:", e);
   }
 
-  // fallback GET
   try {
     const qs = encodeURIComponent(ids.join(","));
     const res = await fetch(`${LIKE_API}/likes/batch?ids=${qs}`);
@@ -228,13 +249,10 @@ function updateLikeUI(id, count) {
 }
 
 async function postLike(id) {
-  // まずローカル即反映（何回押してもOK）
   const next = (likes.get(id) || 0) + 1;
   likes.set(id, next);
   updateLikeUI(id, next);
 
-  // サーバ反映（仕様差を吸収）
-  // 1) POST /likes {id}
   try {
     const res = await fetch(`${LIKE_API}/likes`, {
       method: "POST",
@@ -258,7 +276,6 @@ async function postLike(id) {
     console.warn("POST /likes failed:", e);
   }
 
-  // 2) POST /likes/:id
   try {
     const res = await fetch(`${LIKE_API}/likes/${encodeURIComponent(id)}`, { method: "POST" });
     if (!res.ok) return;
@@ -277,14 +294,13 @@ async function postLike(id) {
 }
 
 /* =========================
-   Render (CSSに合わせる)
+   Render（UI戻し版）
 ========================= */
 function buildCard(photo) {
   const card = document.createElement("div");
   card.className = "card";
   card.dataset.photoId = photo.id;
 
-  // tile
   const tile = document.createElement("div");
   tile.className = "tile";
 
@@ -323,7 +339,6 @@ function buildCard(photo) {
   tile.appendChild(hit);
   tile.appendChild(checkLabel);
 
-  // meta
   const meta = document.createElement("div");
   meta.className = "meta";
 
@@ -337,7 +352,6 @@ function buildCard(photo) {
 
   const likeCount = document.createElement("span");
   likeCount.className = "like-count";
-  likeCount.dataset.likeCount = photo.id;           // data-like-count
   likeCount.setAttribute("data-like-count", photo.id);
   likeCount.textContent = String(likes.get(photo.id) || 0);
 
@@ -356,10 +370,9 @@ function renderNextChunk() {
   if (renderIndex >= end) return false;
 
   const frag = document.createDocumentFragment();
-  for (let i = renderIndex; i < end; i++) {
-    frag.appendChild(buildCard(allPhotos[i]));
-  }
+  for (let i = renderIndex; i < end; i++) frag.appendChild(buildCard(allPhotos[i]));
   $gallery.appendChild(frag);
+
   renderIndex = end;
   return (renderIndex < allPhotos.length);
 }
@@ -378,12 +391,12 @@ function setupInfiniteScroll() {
 }
 
 /* =========================
-   Load
+   Load list
 ========================= */
 async function loadList() {
   showOverlay("写真一覧を取得しています…", "");
 
-  const res = await fetch(jsonUrl(), { cache: "no-store" });
+  const res = await fetchWithTimeout(jsonUrl(), { cache: "no-store" }, LIST_TIMEOUT_MS);
   if (!res.ok) throw new Error(`list json failed: ${res.status}`);
   const data = await res.json();
 
@@ -403,11 +416,9 @@ async function loadList() {
     };
   });
 
-  // Like 先読み（最初の120件だけ）
   const firstIds = allPhotos.slice(0, Math.min(120, allPhotos.length)).map(p => p.id);
   await fetchLikesBatch(firstIds);
 
-  // 描画
   $gallery.innerHTML = "";
   renderIndex = 0;
   renderNextChunk();
@@ -417,33 +428,78 @@ async function loadList() {
 }
 
 /* =========================
-   Upload
+   Upload（タイムアウト長め + 軽量化オプション）
 ========================= */
+async function fileToCompressedBlob(file) {
+  // 軽量化しない設定ならそのまま返す
+  if (!ENABLE_CLIENT_COMPRESS) return file;
+
+  // 画像以外はそのまま
+  if (!file.type.startsWith("image/")) return file;
+
+  const imgBitmap = await createImageBitmap(file).catch(() => null);
+  if (!imgBitmap) return file;
+
+  const w = imgBitmap.width;
+  const h = imgBitmap.height;
+  const maxEdge = Math.max(w, h);
+  const scale = maxEdge > COMPRESS_MAX_EDGE ? (COMPRESS_MAX_EDGE / maxEdge) : 1;
+
+  const tw = Math.round(w * scale);
+  const th = Math.round(h * scale);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = tw;
+  canvas.height = th;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(imgBitmap, 0, 0, tw, th);
+
+  const blob = await new Promise((resolve) => {
+    canvas.toBlob(
+      (b) => resolve(b || file),
+      "image/jpeg",
+      COMPRESS_JPEG_QUALITY
+    );
+  });
+
+  return blob;
+}
+
+async function uploadOne(file, index, total) {
+  const blob = await fileToCompressedBlob(file);
+
+  const fd = new FormData();
+  fd.append("file", blob, file.name.replace(/\.\w+$/, "") + ".jpg");
+  fd.append("upload_preset", UPLOAD_PRESET);
+  if (UPLOAD_FOLDER) fd.append("folder", UPLOAD_FOLDER);
+
+  updateOverlay(`${index + 1} / ${total}`);
+
+  const res = await fetchWithTimeout(
+    `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
+    { method: "POST", body: fd },
+    UPLOAD_TIMEOUT_MS
+  );
+
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`upload failed: ${res.status} ${t}`);
+  }
+
+  return res.json();
+}
+
 async function uploadFiles(files) {
   if (!files || files.length === 0) return;
 
-  showOverlay("アップロード中…", `0 / ${files.length}`);
+  showOverlay(
+    ENABLE_CLIENT_COMPRESS ? "アップロード中（軽量化して送信）…" : "アップロード中…",
+    `0 / ${files.length}`
+  );
 
   const uploaded = [];
   for (let i = 0; i < files.length; i++) {
-    updateOverlay(`${i + 1} / ${files.length}`);
-
-    const fd = new FormData();
-    fd.append("file", files[i]);
-    fd.append("upload_preset", UPLOAD_PRESET);
-    if (UPLOAD_FOLDER) fd.append("folder", UPLOAD_FOLDER);
-
-    const up = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
-      method: "POST",
-      body: fd,
-    });
-
-    if (!up.ok) {
-      const t = await up.text().catch(() => "");
-      throw new Error(`upload failed: ${up.status} ${t}`);
-    }
-
-    const data = await up.json();
+    const data = await uploadOne(files[i], i, files.length);
     uploaded.push({
       public_id: data.public_id,
       version: data.version,
@@ -483,7 +539,6 @@ async function bulkSaveSelected() {
   const ids = Array.from(selected);
   if (ids.length === 0) return;
 
-  // iOS制限で完全自動DLは難しいので「原寸を順に開く」方式
   showOverlay("一括保存の準備中…", `${ids.length} 枚`);
   hideOverlay();
 
@@ -517,7 +572,11 @@ function bindEvents() {
     } catch (err) {
       console.error(err);
       hideOverlay();
-      alert("アップロードに失敗しました。電波が弱い場合は枚数を減らして試してください。");
+      alert(
+        "アップロードに失敗しました。\n" +
+        "・回線が弱い場合は枚数を減らす\n" +
+        "・それでもダメなら、写真を少し軽くする（今は“劣化が分かりにくい軽量化”を入れています）\n"
+      );
     }
   });
 
