@@ -21,6 +21,11 @@ button {
   cursor: pointer;
 }
 
+body.no-scroll {
+  overflow: hidden;
+  touch-action: none;
+}
+
 /* =========================
    Header
    ========================= */
@@ -52,7 +57,7 @@ button {
 .upload-button {
   background: linear-gradient(135deg, #ff8fb1, #ff5f8f);
   color: #fff;
-  font-weight: 700;
+  font-weight: 800;
   font-size: 14px;
   padding: 12px 20px;
   border-radius: 999px;
@@ -77,7 +82,7 @@ button {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 12px;
-  padding: 0 12px 32px;
+  padding: 0 12px 96px; /* bulkbar分の余白 */
 }
 
 /* =========================
@@ -94,9 +99,16 @@ button {
 .photo-card img {
   width: 100%;
   aspect-ratio: 1 / 1;
-  object-fit: cover;
+  object-fit: cover; /* 一覧はスクエア */
   -webkit-user-select: none;
   user-select: none;
+}
+
+/* Selected ring */
+.photo-card.is-selected {
+  outline: 3px solid rgba(255, 95, 143, 0.85);
+  box-shadow: 0 0 0 3px rgba(255, 95, 143, 0.25),
+              0 10px 28px rgba(255, 95, 143, 0.20);
 }
 
 /* Like button */
@@ -104,9 +116,45 @@ button {
   width: 100%;
   padding: 10px 0;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 900;
   background: #fff;
   border-top: 1px solid #eee;
+}
+
+/* checkbox */
+.select-toggle {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.18);
+  backdrop-filter: blur(6px);
+  display: grid;
+  place-items: center;
+  z-index: 3;
+  pointer-events: auto;
+}
+
+.select-toggle span {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.9);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 900;
+  color: #ff5f8f;
+}
+
+.select-toggle.is-on {
+  background: rgba(255, 95, 143, 0.70);
+}
+.select-toggle.is-on span {
+  color: #ff5f8f;
 }
 
 /* =========================
@@ -127,13 +175,74 @@ button {
 }
 
 /* =========================
-   Fullscreen Overlay (initial / upload)
+   Bulk bar
    ========================= */
-body.no-scroll {
-  overflow: hidden;
-  touch-action: none;
+.bulkbar[hidden] { display: none !important; }
+
+.bulkbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  background: rgba(255,255,255,0.92);
+  border-top: 1px solid rgba(0,0,0,0.08);
+  backdrop-filter: blur(10px);
+  z-index: 90000;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
+.bulkbar-left {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.bulkbar-count {
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.bulkbar-link {
+  font-size: 12px;
+  font-weight: 900;
+  color: #ff5f8f;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 95, 143, 0.10);
+}
+
+.bulkbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bulkbar-btn {
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 900;
+  background: rgba(0,0,0,0.06);
+}
+
+.bulkbar-btn.primary {
+  background: linear-gradient(135deg, #ff8fb1, #ff5f8f);
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(255, 95, 143, 0.26);
+}
+
+.bulkbar-btn:disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+/* =========================
+   Fullscreen Overlay
+   ========================= */
 .overlay[hidden] { display: none !important; }
 
 .overlay {
@@ -194,7 +303,7 @@ body.no-scroll {
 .overlay-progress {
   font-size: 13px;
   color: #111;
-  font-weight: 800;
+  font-weight: 900;
 }
 
 /* spinner */
@@ -237,7 +346,7 @@ body.no-scroll {
 }
 
 /* =========================
-   Viewer (tap to open)
+   Viewer
    ========================= */
 .viewer[hidden] { display: none !important; }
 
@@ -264,10 +373,9 @@ body.no-scroll {
   border-radius: 18px;
   box-shadow: 0 18px 60px rgba(0,0,0,0.45);
   overflow: hidden;
-  z-index: 1; /* backdropより前 */
+  z-index: 1;
 }
 
-/* ×ボタン：必ずクリックできるように最前面 */
 .viewer-close {
   position: absolute;
   top: 10px;
@@ -278,7 +386,8 @@ body.no-scroll {
   background: rgba(0,0,0,0.08);
   font-size: 18px;
   font-weight: 900;
-  z-index: 5;
+  z-index: 10;
+  pointer-events: auto;
 }
 
 .viewer-media {
@@ -293,7 +402,7 @@ body.no-scroll {
   display: block;
 }
 
-/* ローディング（重要：hidden を必ず効かせる） */
+/* loading (hiddenが必ず効く) */
 .viewer-loading {
   position: absolute;
   inset: 0;
@@ -302,16 +411,15 @@ body.no-scroll {
   gap: 10px;
   background: rgba(255,255,255,0.65);
   z-index: 2;
+  pointer-events: none; /* ローディングが×を塞がない */
 }
 
-.viewer-loading[hidden] {
-  display: none !important;
-}
+.viewer-loading[hidden] { display: none !important; }
 
 .viewer-loading-text {
   font-size: 13px;
   color: #333;
-  font-weight: 800;
+  font-weight: 900;
 }
 
 .viewer-actions {
