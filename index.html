@@ -3,24 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-
   <title>Wedding Photo Share</title>
 
-  <!-- Favicon -->
   <link
     rel="icon"
     href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E%F0%9F%93%B7%3C/text%3E%3C/svg%3E"
   />
 
-  <!-- Cloudinary 接続先張り（高速化） -->
+  <!-- Cloudinary 先張り -->
   <link rel="preconnect" href="https://res.cloudinary.com" crossorigin>
   <link rel="preconnect" href="https://api.cloudinary.com" crossorigin>
 
-  <!-- ✅ CSSはこれ1つだけ -->
+  <!-- CSSはこれ1つだけ -->
   <link rel="stylesheet" href="css/style.css?v=67" />
 </head>
-<body>
 
+<body>
   <header class="header">
     <h1>📸 写真をシェアしよう</h1>
     <p>タップで高画質表示 / チェックで選択 → 一括保存</p>
@@ -37,7 +35,7 @@
     <section class="gallery" id="gallery"></section>
   </main>
 
-  <!-- 下固定バー -->
+  <!-- 下固定バー（選択/一括保存） -->
   <div id="bulkBar" class="bulkbar" hidden>
     <div class="bulkbar-left">
       <div class="bulkbar-count">
@@ -53,12 +51,11 @@
     </div>
   </div>
 
-  <!-- 全画面オーバーレイ -->
+  <!-- 全画面オーバーレイ（初回ロード / アップロード / 一括保存準備） -->
   <div id="uploadOverlay" class="overlay" hidden>
     <div class="overlay-card" role="status" aria-live="polite">
       <div class="spinner" aria-hidden="true"></div>
       <div class="spinner-pulse" aria-hidden="true"></div>
-
       <div class="overlay-title">処理中…</div>
       <div id="uploadOverlaySub" class="overlay-sub">しばらくお待ちください</div>
       <div id="uploadOverlayProgress" class="overlay-progress"></div>
@@ -90,13 +87,11 @@
       </div>
 
       <div class="viewer-note">
-        iPhone：<b>「原寸で開く」→ 画像を長押し → “写真に追加/画像を保存”</b>
+        iPhone：<b>「原寸で開く」→ 画像を長押し → “写真に追加/画像を保存”</b> が確実です。
       </div>
     </div>
   </div>
 
-  <!-- ✅ JSも1回だけ -->
-  <script src="js/main.js?v=68" defer></script>
-
+  <script src="js/main.js?v=67" defer></script>
 </body>
 </html>
