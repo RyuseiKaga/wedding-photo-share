@@ -57,6 +57,14 @@ let viewerOpenPhoto = null;
 let viewerLoadToken = 0;
 
 /* =========================
+   ✅ ユーザー操作があるまで viewer を絶対に開かない
+========================= */
+let userInteracted = false;
+function markInteracted() { userInteracted = true; }
+window.addEventListener("pointerdown", markInteracted, { once: true, passive: true });
+window.addEventListener("touchstart", markInteracted, { once: true, passive: true });
+
+/* =========================
    Utils
 ========================= */
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -105,23 +113,24 @@ function chunk(arr, size) {
 }
 
 /* =========================
-   Viewer（✅ 起動時に絶対開かない）
+   Viewer（✅ 起動時/復帰時に絶対閉じる）
 ========================= */
 function forceViewerClosedOnLoad() {
+  // token進めて、進行中のプリロード結果を無効化
+  viewerLoadToken++;
+
   $viewer.hidden = true;
   $viewerLoading.hidden = true;
   $viewerImg.removeAttribute("src");
+  $viewerImg.src = ""; // Safari対策
   viewerOpenPhoto = null;
 
-  // ハッシュや履歴で勝手に開く系が混ざってた時の保険
+  // hashが残ってる系の保険
   if (location.hash) history.replaceState(null, "", location.pathname + location.search);
 }
 
 function closeViewer() {
-  $viewer.hidden = true;
-  $viewerLoading.hidden = true;
-  $viewerImg.removeAttribute("src");
-  viewerOpenPhoto = null;
+  forceViewerClosedOnLoad();
 }
 
 function preloadImage(url, timeoutMs = HIRES_TIMEOUT_MS) {
@@ -152,12 +161,16 @@ function preloadImage(url, timeoutMs = HIRES_TIMEOUT_MS) {
 }
 
 async function openViewer(photo) {
+  // ✅ ユーザーが触るまで絶対に開かない（自動オープン完全遮断）
+  if (!userInteracted) return;
+
   if (!photo) return;
   viewerOpenPhoto = photo;
 
   $viewer.hidden = false;
   $viewerLoading.hidden = false;
   $viewerImg.removeAttribute("src");
+  $viewerImg.src = "";
 
   // ボタンは先に有効化（保存導線）
   $viewerOpen.href = photo.original;
@@ -167,16 +180,15 @@ async function openViewer(photo) {
   const hiUrl = photo.view;
 
   try {
-    // ✅ 先に読み込み（ここが“ずっとぐるぐる”対策）
     await preloadImage(hiUrl, HIRES_TIMEOUT_MS);
     if (token !== viewerLoadToken) return;
 
     $viewerImg.src = hiUrl;
+
     if ($viewerImg.decode) {
       try { await $viewerImg.decode(); } catch {}
     }
   } catch (e) {
-    // 高画質が死んでも最低限見せる
     if (token !== viewerLoadToken) return;
     console.warn("viewer preload failed:", e);
     $viewerImg.src = photo.thumb;
@@ -185,6 +197,21 @@ async function openViewer(photo) {
     $viewerLoading.hidden = true;
   }
 }
+
+/* ✅ iPhoneの「前回状態の復元」で viewer が勝手に出るのを潰す */
+window.addEventListener("pageshow", () => {
+  closeViewer();
+  // 連続で叩く（Safari復元で遅れて出ることがある）
+  setTimeout(closeViewer, 0);
+  setTimeout(closeViewer, 200);
+  setTimeout(closeViewer, 600);
+});
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    closeViewer();
+    setTimeout(closeViewer, 0);
+  }
+});
 
 /* =========================
    Likes API（頑丈に）
@@ -208,7 +235,7 @@ async function fetchLikesBatch(ids) {
       }
       return;
     }
-  } catch (e) {}
+  } catch {}
 
   // 2) GET /likes/batch?ids=...
   try {
@@ -221,11 +248,11 @@ async function fetchLikesBatch(ids) {
       const v = obj[id];
       if (typeof v === "number") likes.set(id, v);
     }
-  } catch (e) {}
+  } catch {}
 }
 
 async function postLike(id) {
-  // 即時反映（何回押せてもOK）
+  // 即時反映（UI）
   const next = (likes.get(id) || 0) + 1;
   likes.set(id, next);
   updateLikeUI(id, next);
@@ -244,14 +271,14 @@ async function postLike(id) {
         (typeof data?.count === "number" && data.count) ||
         (typeof data?.value === "number" && data.value) ||
         (typeof data === "number" && data);
+
       if (typeof serverCount === "number") {
         likes.set(id, serverCount);
         updateLikeUI(id, serverCount);
       }
-      // いいね順の並び替え（軽く：一定時間でまとめてやる）
       scheduleResort();
     }
-  } catch (e) {
+  } catch {
     // 通信失敗でもUIは維持
   }
 }
@@ -262,7 +289,7 @@ function updateLikeUI(id, count) {
 }
 
 /* =========================
-   Render（✅ CSSの .card/.tile 構造に合わせる）
+   Render（CSSの .card/.tile 構造に合わせる）
 ========================= */
 function buildPhotoCard(photo, isTop = false) {
   const card = document.createElement("div");
@@ -369,10 +396,8 @@ function scheduleResort() {
 }
 
 function resortByLikesAndRerender() {
-  // likes未取得は0扱い
   allPhotos.sort((a, b) => (likes.get(b.id) || 0) - (likes.get(a.id) || 0));
 
-  // 再描画（無限スクロールを維持）
   $gallery.innerHTML = "";
   renderIndex = 0;
   renderNextChunk();
@@ -392,7 +417,7 @@ async function loadList() {
   const data = await res.json();
   const resources = Array.isArray(data?.resources) ? data.resources : [];
 
-  // いったん写真配列作成（最新順の保険）
+  // 最新順の保険（versionが新しいほど新しい）
   resources.sort((a, b) => (b.version || 0) - (a.version || 0));
 
   allPhotos = resources.map(r => {
@@ -410,17 +435,16 @@ async function loadList() {
     };
   });
 
-  // ✅ いいねをまとめて取得（多いときは分割）
+  // いいねをまとめて取得（多いときは分割）
   const ids = allPhotos.map(p => p.id);
   const batches = chunk(ids, 100);
-  for (let i = 0; i < batches.length; i++) {
-    await fetchLikesBatch(batches[i]);
+  for (const b of batches) {
+    await fetchLikesBatch(b);
   }
 
-  // ✅ いいね順に並べ替え（TOP豪華）
+  // いいね順に並べ替え（TOP豪華）
   allPhotos.sort((a, b) => (likes.get(b.id) || 0) - (likes.get(a.id) || 0));
 
-  // 描画
   $gallery.innerHTML = "";
   renderIndex = 0;
   renderNextChunk();
@@ -430,12 +454,11 @@ async function loadList() {
 }
 
 /* =========================
-   Upload（安定のため “数枚ずつ” 推奨）
+   Upload（安定のため “数枚ずつ”）
 ========================= */
 async function uploadFiles(files) {
   if (!files || files.length === 0) return;
 
-  // 安定のため制限
   const list = files.slice(0, UPLOAD_MAX_FILES_PER_BATCH);
 
   showOverlay(
@@ -485,7 +508,6 @@ async function uploadFiles(files) {
   for (const p of newPhotos) likes.set(p.id, likes.get(p.id) || 0);
 
   allPhotos = [...newPhotos, ...allPhotos];
-  // 新規はいいね0なので、全体のいいね順を保ちたいならここで再ソート
   allPhotos.sort((a, b) => (likes.get(b.id) || 0) - (likes.get(a.id) || 0));
 
   $gallery.innerHTML = "";
@@ -494,14 +516,10 @@ async function uploadFiles(files) {
   setupInfiniteScroll();
 
   hideOverlay();
-
-  // 余裕がある時だけ、後でlistを再取得（任意）
-  // await sleep(1500);
-  // try { await loadList(); } catch {}
 }
 
 /* =========================
-   Bulk Save（1ボタンで“準備”まで。端末制限は避けられない）
+   Bulk Save（1ボタンで“準備”まで）
 ========================= */
 async function bulkSaveSelected() {
   const ids = Array.from(selected);
@@ -514,8 +532,7 @@ async function bulkSaveSelected() {
 
   showOverlay("一括保存の準備中…", "端末によっては保存操作が必要です", `${ids.length} 枚`);
 
-  // iOS / ブラウザ制限：自動DLは無理なので「原寸を順番に開く」方式
-  // ※ ポップアップブロックされる場合あり → その場合は枚数を減らす
+  // 自動DLは無理なので「原寸を順番に開く」方式
   hideOverlay();
 
   let opened = 0;
@@ -598,8 +615,11 @@ function bindEvents() {
    Boot
 ========================= */
 async function boot() {
-  // ✅ 起動時に勝手にビューアが出るのを潰す
+  // ✅ 起動時に強制クローズ（復元でも出さない）
   forceViewerClosedOnLoad();
+  setTimeout(closeViewer, 0);
+  setTimeout(closeViewer, 200);
+  setTimeout(closeViewer, 600);
 
   bindEvents();
 
@@ -608,7 +628,6 @@ async function boot() {
   } catch (e) {
     console.error(e);
     hideOverlay();
-    // iPhoneで原因追えるように “list URL” も出す
     alert("写真一覧の読み込みに失敗しました。\nlist url = " + jsonUrl());
   }
 
