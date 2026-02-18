@@ -745,10 +745,31 @@ function buildFilesFromPrefetchSelected() {
 /* =========================
    Render
 ========================= */
+
+/* ✅ 追加：カード入場アニメ（CSSの .card-enter / .is-in を発火） */
+function animateCardEntrance(cards) {
+  if (!cards || cards.length === 0) return;
+
+  requestAnimationFrame(() => {
+    for (const c of cards) {
+      try { c.classList.add("is-in"); } catch {}
+    }
+    // 片付け（次回の再描画でも再発火できるように）
+    setTimeout(() => {
+      for (const c of cards) {
+        try { c.classList.remove("card-enter"); } catch {}
+      }
+    }, 650);
+  });
+}
+
 function buildPhotoCard(photo, isTop = false) {
   const card = document.createElement("div");
   card.className = isTop ? "card card--top like-glow-scope" : "card like-glow-scope";
   card.dataset.photoId = photo.id;
+
+  // ✅ 追加：初期状態（透明＆少し下）
+  card.classList.add("card-enter");
 
   const tile = document.createElement("div");
   tile.className = "tile";
@@ -827,10 +848,17 @@ function renderNextChunk() {
   if (renderIndex >= end) return false;
 
   const frag = document.createDocumentFragment();
+  const newCards = []; // ✅ 追加：今回描画したカードだけ入場させる
+
   for (let i = renderIndex; i < end; i++) {
-    frag.appendChild(buildPhotoCard(allPhotos[i], i === 0));
+    const c = buildPhotoCard(allPhotos[i], i === 0);
+    newCards.push(c);
+    frag.appendChild(c);
   }
   $gallery.appendChild(frag);
+
+  // ✅ 追加：DOMに乗ってから is-in を付与して入場アニメ発火
+  animateCardEntrance(newCards);
 
   renderIndex = end;
   return (renderIndex < allPhotos.length);
@@ -886,25 +914,26 @@ async function loadList() {
   await withOverlay("読み込み中…", "いいねを取得して並び替えています", async () => {
     const res = await fetch(jsonUrl(), { cache: "no-store" });
 
-// ✅ listが無い(404) / 権限系(403) でも「0枚」として扱う
-if (res.status === 404 || res.status === 403) {
-  allPhotos = [];
-  $gallery.innerHTML = "";
-  uiById.clear();
-  renderIndex = 0;
-  return;
-}
+    // ✅ listが無い(404) / 権限系(403) でも「0枚」として扱う
+    if (res.status === 404 || res.status === 403) {
+      allPhotos = [];
+      $gallery.innerHTML = "";
+      uiById.clear();
+      renderIndex = 0;
+      return;
+    }
 
-// 他のエラーは従来通り
-if (!res.ok) throw new Error(`list json failed: ${res.status}`);
+    // 他のエラーは従来通り
+    if (!res.ok) throw new Error(`list json failed: ${res.status}`);
 
-// ✅ JSONパースに失敗しても0枚扱い
-let data;
-try {
-  data = await res.json();
-} catch {
-  data = { resources: [] };
-}
+    // ✅ JSONパースに失敗しても0枚扱い
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      data = { resources: [] };
+    }
+
     const resources = Array.isArray(data?.resources) ? data.resources : [];
 
     resources.sort((a, b) => (b.version || 0) - (a.version || 0));
