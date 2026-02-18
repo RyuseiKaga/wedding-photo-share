@@ -869,3 +869,94 @@ body.is-busy{
 .card--top.top-swap-ultra{
   isolation: isolate;
 }
+
+/* ===================================================================
+   Modern touch (ADD ONLY)  ✅ここが「提案のあったソース」を末尾に追記した部分
+   - 画像ファイル不要：SVGノイズをCSS埋め込み
+   - 触ったときの反応（hover/press）
+   - ふわっと入場（JSでクラス付与したときだけ効く）
+=================================================================== */
+
+/* 1) 背景に“質感”を追加（うっすらグレイン + ほんの少しビネット） */
+body::before{
+  content:"";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: .055;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.25'/%3E%3C/svg%3E");
+  background-size: 220px 220px;
+  mix-blend-mode: multiply;
+  transform: translateZ(0);
+}
+
+body::after{
+  content:"";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background:
+    radial-gradient(900px 520px at 50% -10%, rgba(47,111,94,.08), transparent 55%),
+    radial-gradient(900px 520px at 50% 110%, rgba(0,0,0,.06), transparent 55%);
+  opacity: .75;
+}
+
+/* 2) “最新っぽい”触り心地：カード/画像の反応（既存デザインは維持） */
+.card{
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+  will-change: transform;
+}
+.tile-img{
+  transition: transform 220ms ease;
+}
+
+@media (hover:hover){
+  .card:hover{
+    transform: translateY(-2px);
+    box-shadow: var(--shadowMd);
+    border-color: rgba(31,41,55,.14);
+  }
+  .card:hover .tile-img{
+    transform: scale(1.03);
+  }
+}
+
+/* iPhoneなどタッチ端末：押した瞬間の“沈み” */
+@media (hover:none){
+  .card:active{
+    transform: scale(.995);
+  }
+}
+
+/* 3) ふわっと入場（JSがクラスを付けた時だけ有効）
+   - カード生成直後：card-enter を付与
+   - 次フレームで：is-in を追加
+*/
+.card.card-enter{
+  opacity: 0;
+  transform: translateY(10px) scale(.985);
+}
+.card.card-enter.is-in{
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition: opacity 520ms ease, transform 520ms cubic-bezier(.2,.9,.2,1);
+}
+
+/* 4) 動きを減らす設定の人には入場・ホバーを抑える */
+@media (prefers-reduced-motion: reduce){
+  .card{
+    transition: none !important;
+  }
+  .tile-img{
+    transition: none !important;
+  }
+  .card.card-enter,
+  .card.card-enter.is-in{
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}
