@@ -146,19 +146,16 @@ function consumePendingEffect(key, maxAgeMs) {
   }
 }
 function applyPendingEffectsAfterRender() {
-  // レンダリング直後に1回だけ実行（TOP/likeボタンDOMが出来てから）
   requestAnimationFrame(() => {
     // like glow（最大30秒まで）
     const pl = consumePendingEffect(PENDING_LIKE_GLOW_KEY, 30000);
     if (pl?.id) {
-      // もう一度ふわっと光らせる（再描画で消えてもOK）
       pulseLikeGlow(pl.id);
     }
 
-    // top swap（最大60秒まで）
+    // top swap（最大60秒まで）※今は「再描画で消える」時の保険
     const pt = consumePendingEffect(PENDING_TOP_SWAP_KEY, 60000);
     if (pt?.id) {
-      // 現在のTOPが一致している時だけ
       const topNow = allPhotos[0]?.id || null;
       if (topNow && topNow === pt.id) {
         triggerTopSwapUltra(pt.id);
@@ -262,30 +259,26 @@ function setBulkBar() {
    ✅ 選択を全解除（保存成功後に呼ぶ）
 ========================= */
 function clearAllSelections() {
-  // 選択を消す
   selected.clear();
 
-  // UIのチェックも外す
   for (const [, ui] of uiById) {
     if (ui?.cb) ui.cb.checked = false;
   }
 
-  // prefetchの準備済みファイルを解放（メモリ節約）
-  // ※ entries自体は残してOKだが、fileは解放する
   for (const [id, e] of prefetch.entries) {
     if (!e) continue;
-    // キューに残っているものは除去
+
     if (e.state === "queued") {
       prefetch.queue = prefetch.queue.filter(x => x !== id);
       e.state = "idle";
     }
-    // DL中なら中断
+
     if (e.state === "downloading" && e.controller) {
       try { e.controller.abort(); } catch {}
       e.controller = null;
       e.state = "idle";
     }
-    // ready/error もファイルを捨てる
+
     e.file = null;
     e.error = null;
     if (e.state !== "downloading") e.state = "idle";
@@ -446,10 +439,9 @@ function pulseLikeGlow(id) {
   if (!ui?.likeBtn) return;
 
   ui.likeBtn.classList.remove("like-glow");
-  void ui.likeBtn.offsetWidth; // reflow で連続発火できるように
+  void ui.likeBtn.offsetWidth;
   ui.likeBtn.classList.add("like-glow");
 
-  // CSS側のアニメ時間に合わせて掃除
   setTimeout(() => {
     try { ui.likeBtn.classList.remove("like-glow"); } catch {}
   }, 750);
@@ -471,7 +463,6 @@ async function postLike(id) {
   likeLocks.set(id, now + LIKE_LOCK_MS);
   setLikeButtonDisabled(id, true);
 
-  // ✅ 先に演出（＋再描画/リロードで消えても出せるように予約）
   pulseLikeGlow(id);
   setPendingEffect(PENDING_LIKE_GLOW_KEY, { id });
 
@@ -511,19 +502,16 @@ async function postLike(id) {
 
 /* =========================
    ✅ TOP swap ULTRA（2位→1位に入れ替わった時だけ）
-   - .top-swap-ultra クラス + .confetti を一時生成
 ========================= */
 function triggerTopSwapUltra(topId) {
   const ui = uiById.get(topId);
   const card = ui?.card;
   if (!card) return;
 
-  // ① クラスで豪華アニメ発火
   card.classList.remove("top-swap-ultra");
   void card.offsetWidth;
   card.classList.add("top-swap-ultra");
 
-  // ② 紙吹雪DOMを一時生成（軽量）
   const old = card.querySelector(".confetti");
   if (old) old.remove();
 
@@ -552,7 +540,6 @@ function triggerTopSwapUltra(topId) {
 
   card.appendChild(confetti);
 
-  // ③ お掃除
   setTimeout(() => {
     try { card.classList.remove("top-swap-ultra"); } catch {}
     const c = card.querySelector(".confetti");
@@ -754,7 +741,6 @@ function animateCardEntrance(cards) {
     for (const c of cards) {
       try { c.classList.add("is-in"); } catch {}
     }
-    // 片付け（次回の再描画でも再発火できるように）
     setTimeout(() => {
       for (const c of cards) {
         try { c.classList.remove("card-enter"); } catch {}
@@ -768,7 +754,7 @@ function buildPhotoCard(photo, isTop = false) {
   card.className = isTop ? "card card--top like-glow-scope" : "card like-glow-scope";
   card.dataset.photoId = photo.id;
 
-  // ✅ 追加：初期状態（透明＆少し下）
+  // ✅ 入場の初期状態（透明＆少し下）
   card.classList.add("card-enter");
 
   const tile = document.createElement("div");
@@ -848,7 +834,7 @@ function renderNextChunk() {
   if (renderIndex >= end) return false;
 
   const frag = document.createDocumentFragment();
-  const newCards = []; // ✅ 追加：今回描画したカードだけ入場させる
+  const newCards = [];
 
   for (let i = renderIndex; i < end; i++) {
     const c = buildPhotoCard(allPhotos[i], i === 0);
@@ -857,7 +843,6 @@ function renderNextChunk() {
   }
   $gallery.appendChild(frag);
 
-  // ✅ 追加：DOMに乗ってから is-in を付与して入場アニメ発火
   animateCardEntrance(newCards);
 
   renderIndex = end;
@@ -878,32 +863,81 @@ function setupInfiniteScroll() {
   io.observe($sentinel);
 }
 
+/* =========================
+   ✅ FIX: いいね後にDOMを作り直さず、既存カードを並べ替える（チカつき防止）
+========================= */
+function reorderRenderedCardsInPlace() {
+  // 現在描画済みのカード枚数（作り直さない）
+  const nodes = Array.from($gallery?.children || []);
+  if (nodes.length === 0) return;
+
+  const renderedCount = nodes.length;
+  const desiredIds = allPhotos.slice(0, renderedCount).map(p => p.id);
+
+  // 今の並びが既に正しいなら何もしない
+  let same = true;
+  for (let i = 0; i < renderedCount; i++) {
+    const curId = nodes[i]?.dataset?.photoId || "";
+    if (curId !== desiredIds[i]) { same = false; break; }
+  }
+  if (same) return;
+
+  const frag = document.createDocumentFragment();
+  const used = new Set();
+
+  // 望ましい順に既存ノードをappend（移動するだけ）
+  for (const id of desiredIds) {
+    const card = uiById.get(id)?.card;
+    if (card) {
+      frag.appendChild(card);
+      used.add(id);
+    }
+  }
+
+  // 念のため、残りがあれば末尾に維持（基本ここは空のはず）
+  for (const n of nodes) {
+    const id = n?.dataset?.photoId || "";
+    if (!used.has(id)) frag.appendChild(n);
+  }
+
+  $gallery.appendChild(frag);
+}
+
+function updateTopClass(prevTop, nextTop) {
+  if (prevTop && prevTop !== nextTop) {
+    const prevEl = uiById.get(prevTop)?.card;
+    if (prevEl) prevEl.classList.remove("card--top");
+  }
+  if (nextTop) {
+    const nextEl = uiById.get(nextTop)?.card;
+    if (nextEl) nextEl.classList.add("card--top");
+  }
+}
+
 function resortByLikesAndRerender() {
   const prevTop = lastTopId;
 
+  // 並び順の元データだけ更新
   allPhotos.sort((a, b) => (likes.get(b.id) || 0) - (likes.get(a.id) || 0));
 
   const nextTop = allPhotos[0]?.id || null;
   lastTopId = nextTop;
 
-  $gallery.innerHTML = "";
-  uiById.clear();
-  renderIndex = 0;
+  // ✅ ここがチカつき解消ポイント：innerHTMLで全消し→再生成をやめる
+  reorderRenderedCardsInPlace();
+  updateTopClass(prevTop, nextTop);
 
-  renderNextChunk();
-  setupInfiniteScroll();
+  // bulk barは状態更新だけ
   setBulkBar();
 
-  // ✅ 2位が1位を超えた時だけ（TOPが変わった時だけ）演出
+  // ✅ TOPが変わった時だけ豪華演出（2位→1位）
   if (prevTop && nextTop && prevTop !== nextTop) {
-    // 再描画/リロードで消えてもOKなように予約
+    // ※再描画で消えるケース用の保険は残す（使わなくてもOK）
     setPendingEffect(PENDING_TOP_SWAP_KEY, { id: nextTop });
-
-    // 今の描画が完了してから発火
     requestAnimationFrame(() => triggerTopSwapUltra(nextTop));
   }
 
-  // 予約していた演出があれば、ここでも拾える
+  // 予約していた演出（like glow等）があればここで拾う
   applyPendingEffectsAfterRender();
 }
 
@@ -914,7 +948,6 @@ async function loadList() {
   await withOverlay("読み込み中…", "いいねを取得して並び替えています", async () => {
     const res = await fetch(jsonUrl(), { cache: "no-store" });
 
-    // ✅ listが無い(404) / 権限系(403) でも「0枚」として扱う
     if (res.status === 404 || res.status === 403) {
       allPhotos = [];
       $gallery.innerHTML = "";
@@ -923,10 +956,8 @@ async function loadList() {
       return;
     }
 
-    // 他のエラーは従来通り
     if (!res.ok) throw new Error(`list json failed: ${res.status}`);
 
-    // ✅ JSONパースに失敗しても0枚扱い
     let data;
     try {
       data = await res.json();
@@ -935,7 +966,6 @@ async function loadList() {
     }
 
     const resources = Array.isArray(data?.resources) ? data.resources : [];
-
     resources.sort((a, b) => (b.version || 0) - (a.version || 0));
 
     allPhotos = resources.map(r => {
@@ -972,7 +1002,6 @@ async function loadList() {
     renderNextChunk();
     setupInfiniteScroll();
 
-    // ✅ リロード/再描画で消えた演出があればここで復元
     applyPendingEffectsAfterRender();
   });
 }
@@ -1032,14 +1061,12 @@ async function uploadFiles(files) {
     renderNextChunk();
     setupInfiniteScroll();
 
-    // 念のため（予約演出があれば）
     applyPendingEffectsAfterRender();
   });
 }
 
 /* =========================
    Bulk Save（✅ 準備済みfilesで共有）
-   ✅ 成功したら選択解除する
 ========================= */
 async function bulkSaveSelected() {
   const n = selected.size;
@@ -1074,14 +1101,12 @@ async function bulkSaveSelected() {
     return;
   }
 
-  // ✅ share成功したら選択解除
   const ok = await shareFilesIfPossible(files);
   if (ok) {
     clearAllSelections();
     return;
   }
 
-  // フォールバック：順に開く（この場合は“保存成功”が判定できないので解除しない）
   if (isLikelyTouchDevice()) {
     alert("共有で一括保存できない端末でした。代わりにタブで画像を開きます。\n各画像を長押しして「写真に追加/画像を保存」してください。");
   }
