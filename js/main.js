@@ -14,7 +14,7 @@ const DELETED_PHOTOS_KEY = "wedding_deleted_v1";
 const UPLOAD_CACHE_KEY = "wedding_upload_cache_v1";
 
 // 自動ポーリング間隔（新着写真を検知してサイレント更新）
-const POLL_INTERVAL_MS = 30000;
+const POLL_INTERVAL_MS = 5000;
 
 // 体感ほぼ変えず軽く（保存用＝view を使う）
 const VIEW_TRANSFORM  = "c_limit,w_1600,q_auto:good,f_auto";
