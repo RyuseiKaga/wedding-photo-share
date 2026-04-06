@@ -1717,7 +1717,7 @@ function showSummary() {
       appleBtn.target = "_blank";
       appleBtn.rel = "noopener";
       appleBtn.setAttribute("aria-label", `${t.name}をApple Musicで聴く`);
-      appleBtn.innerHTML = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" width="17" height="17" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#FA2D48"/><path fill="white" d="M7.8 9.2 L16.8 7.8 L16.8 9.5 L7.8 10.9 Z"/><rect x="7.2" y="9.2" width="1.5" height="7.8" rx="0.75" fill="white"/><rect x="15.4" y="7.8" width="1.5" height="7.2" rx="0.75" fill="white"/><ellipse cx="9.2" cy="17.2" rx="2.8" ry="2.0" fill="white" transform="rotate(-25 9.2 17.2)"/><ellipse cx="17.2" cy="15.2" rx="2.2" ry="1.6" fill="white" transform="rotate(-25 17.2 15.2)"/></svg>`;
+      appleBtn.innerHTML = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" width="17" height="17" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#FA2D48"/><text x="12" y="16.5" text-anchor="middle" fill="white" font-size="13" font-weight="bold" font-family="-apple-system, BlinkMacSystemFont, sans-serif">♫</text></svg>`;
 
       links.appendChild(spotifyBtn);
       links.appendChild(appleBtn);
