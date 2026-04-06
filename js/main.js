@@ -8,6 +8,8 @@ const UPLOAD_FOLDER = "";
 
 const LIKE_API = "https://wedding-like-api.karo2kai.workers.dev";
 
+const DELETED_PHOTOS_KEY = "wedding_deleted_v1";
+
 // 体感ほぼ変えず軽く（保存用＝view を使う）
 const VIEW_TRANSFORM  = "c_limit,w_1600,q_auto:good,f_auto";
 const THUMB_TRANSFORM = "c_fill,w_420,h_420,q_auto:good,f_auto";
@@ -37,6 +39,7 @@ const $sentinel = document.getElementById("sentinel");
 const $bulkBar = document.getElementById("bulkBar");
 const $selectedCount = document.getElementById("selectedCount");
 const $clearSelection = document.getElementById("clearSelection");
+const $bulkDelete = document.getElementById("bulkDelete");
 const $bulkSave = document.getElementById("bulkSave");
 
 const $overlay = document.getElementById("uploadOverlay");
@@ -60,6 +63,11 @@ let renderIndex = 0;
 
 const selected = new Set(); // photo.id
 const likes = new Map();    // photo.id -> number
+
+// ✅ 削除済み写真（localStorageで永続化）
+const deletedPhotos = new Set(
+  (() => { try { return JSON.parse(localStorage.getItem(DELETED_PHOTOS_KEY) || "[]"); } catch { return []; } })()
+);
 
 let io = null;
 let viewerLoadToken = 0;
@@ -285,6 +293,32 @@ function clearAllSelections() {
   }
 
   setBulkBar();
+}
+
+/* =========================
+   ✅ 削除
+========================= */
+function saveDeletedPhotos() {
+  try {
+    localStorage.setItem(DELETED_PHOTOS_KEY, JSON.stringify(Array.from(deletedPhotos)));
+  } catch {}
+}
+
+function deleteSelectedPhotos() {
+  const n = selected.size;
+  if (n === 0) return;
+  if (!confirm(`選択した ${n} 枚の写真をギャラリーから削除しますか？`)) return;
+
+  for (const id of selected) {
+    deletedPhotos.add(id);
+    const ui = uiById.get(id);
+    if (ui?.card) ui.card.remove();
+    uiById.delete(id);
+  }
+
+  allPhotos = allPhotos.filter(p => !deletedPhotos.has(p.id));
+  saveDeletedPhotos();
+  clearAllSelections();
 }
 
 /* =========================
@@ -981,7 +1015,7 @@ async function loadList() {
         view: cldUrl(meta, VIEW_TRANSFORM),
         original: cldUrl(meta, ""),
       };
-    });
+    }).filter(p => !deletedPhotos.has(p.id));
 
     const ids = allPhotos.map(p => p.id);
     const batches = chunk(ids, LIKES_BATCH_SIZE);
@@ -1139,6 +1173,8 @@ function bindEvents() {
   $clearSelection?.addEventListener("click", () => {
     clearAllSelections();
   });
+
+  $bulkDelete?.addEventListener("click", deleteSelectedPhotos);
 
   $bulkSave?.addEventListener("click", async () => {
     try {

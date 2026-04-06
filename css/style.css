@@ -299,6 +299,13 @@ body.is-busy{
   border: 1px solid rgba(255,255,255,.18);
 }
 
+.bulkbar-btn.danger{
+  color:#fff;
+  background: linear-gradient(135deg,#e05252,#c0392b);
+  box-shadow: 0 8px 20px rgba(192,57,43,.22);
+  border: 1px solid rgba(255,255,255,.18);
+}
+
 .bulkbar-btn[disabled]{
   opacity:.55;
   cursor:not-allowed;
