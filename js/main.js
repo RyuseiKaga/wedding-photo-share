@@ -1083,7 +1083,7 @@ function renderNextChunk() {
   const newCards = [];
 
   for (let i = renderIndex; i < end; i++) {
-    const c = buildPhotoCard(allPhotos[i], i === 0);
+    const c = buildPhotoCard(allPhotos[i], i === 0 && sortMode === "likes");
     newCards.push(c);
     frag.appendChild(c);
   }
