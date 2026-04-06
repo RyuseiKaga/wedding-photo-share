@@ -1035,16 +1035,16 @@ body.is-busy{
 
 .victory-hint{
   position:absolute;
-  bottom:14px;
+  bottom:28px;
   left:0; right:0;
   text-align:center;
-  z-index:3;
+  z-index:9993;
   color:rgba(255,255,255,.70);
-  font-size:12px;
+  font-size:13px;
   font-weight:700;
-  letter-spacing:.04em;
-  text-shadow: 0 1px 4px rgba(0,0,0,.5);
-  animation: victoryBadgeIn 500ms 600ms ease-out both;
+  letter-spacing:.06em;
+  text-shadow: 0 1px 4px rgba(0,0,0,.6);
+  animation: victoryBadgeIn 500ms 700ms ease-out both;
 }
 
 .victory-confetti{

@@ -665,7 +665,7 @@ function showVictoryOverlay(photo) {
 
   inner.appendChild(badge);
   inner.appendChild(img);
-  inner.appendChild(hint);
+  // hint は inner の外（overflow:hidden でクリップされないよう overlay に直接置く）
 
   // 紙吹雪（画面全体）
   const confetti = document.createElement("div");
@@ -676,11 +676,10 @@ function showVictoryOverlay(photo) {
     const p = document.createElement("i");
     p.className = colors[i % 6];
     p.style.left = `${Math.random() * 102}%`;
-    const w = 6 + Math.random() * 10;
-    const h = 8 + Math.random() * 14;
-    p.style.width  = `${w}px`;
-    p.style.height = `${h}px`;
-    p.style.borderRadius = Math.random() > .45 ? "50%" : `${1 + Math.random() * 3}px`;
+    const s = 6 + Math.random() * 10;
+    p.style.width  = `${s}px`;
+    p.style.height = `${s}px`;
+    p.style.borderRadius = "2px";
     const dur   = 1800 + Math.random() * 1800;
     const delay = Math.random() * 800;
     p.style.animation = `${anims[i % 3]} ${dur}ms ease-out ${delay}ms forwards`;
@@ -688,6 +687,7 @@ function showVictoryOverlay(photo) {
   }
 
   overlay.appendChild(inner);
+  overlay.appendChild(hint);
   overlay.appendChild(confetti);
   document.body.appendChild(overlay);
 
@@ -721,11 +721,10 @@ function triggerTopSwapUltra(topId) {
   document.body.appendChild(flash);
   setTimeout(() => flash.remove(), 1800);
 
-  // 波紋リング（カード中心から3本）— rAF でカード再配置後の位置を読む
-  requestAnimationFrame(() => {
-    const rect = card.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
+  // 波紋リング（画面中央から3本）— ビクトリーオーバーレイが全画面のため中央固定
+  {
+    const cx = window.innerWidth / 2;
+    const cy = window.innerHeight / 2;
     for (let r = 0; r < 3; r++) {
       const ring = document.createElement("div");
       ring.className = "top-ring";
@@ -740,7 +739,7 @@ function triggerTopSwapUltra(topId) {
       document.body.appendChild(ring);
       setTimeout(() => ring.remove(), 1700 + r * 220);
     }
-  });
+  }
 
   // 紙吹雪（50枚・広範囲・長尺）
   const old = card.querySelector(".confetti");
@@ -757,11 +756,10 @@ function triggerTopSwapUltra(topId) {
 
     p.style.left = `${-15 + Math.random() * 130}%`;
 
-    const w = 5 + Math.random() * 10;
-    const h = 7 + Math.random() * 14;
-    p.style.width  = `${w}px`;
-    p.style.height = `${h}px`;
-    p.style.borderRadius = Math.random() > .45 ? "50%" : `${1 + Math.random() * 3}px`;
+    const s = 5 + Math.random() * 10;
+    p.style.width  = `${s}px`;
+    p.style.height = `${s}px`;
+    p.style.borderRadius = "2px";
 
     const dur   = 1400 + Math.random() * 1400;
     const delay = Math.random() * 500;
