@@ -10,6 +10,9 @@ const LIKE_API = "https://wedding-like-api.karo2kai.workers.dev";
 
 const DELETED_PHOTOS_KEY = "wedding_deleted_v1";
 
+// アップロード直後〜Cloudinaryリスト反映までの空白を埋めるキャッシュ
+const UPLOAD_CACHE_KEY = "wedding_upload_cache_v1";
+
 // 自動ポーリング間隔（新着写真を検知してサイレント更新）
 const POLL_INTERVAL_MS = 30000;
 
@@ -108,6 +111,40 @@ const prefetch = {
   st.textContent = `[hidden]{ display:none !important; }`;
   document.head.appendChild(st);
 })();
+
+/* =========================
+   Upload cache（Cloudinaryリスト反映待ち対策）
+========================= */
+function saveUploadCache(photos) {
+  try {
+    const existing = JSON.parse(localStorage.getItem(UPLOAD_CACHE_KEY) || "[]");
+    const now = Date.now();
+    // 24時間超えたエントリは捨てる
+    const fresh = existing.filter(e => now - (e.t || 0) < 86400000);
+    for (const p of photos) fresh.push({ ...p, t: now });
+    localStorage.setItem(UPLOAD_CACHE_KEY, JSON.stringify(fresh));
+  } catch (e) {}
+}
+
+function mergeUploadCache(photos) {
+  try {
+    const raw = localStorage.getItem(UPLOAD_CACHE_KEY);
+    if (!raw) return photos;
+    const now = Date.now();
+    const cached = JSON.parse(raw).filter(e => now - (e.t || 0) < 86400000);
+    const listIds = new Set(photos.map(p => p.id));
+    for (const e of cached) {
+      if (!listIds.has(e.id) && !deletedPhotos.has(e.id)) {
+        // キャッシュにあってリストに無い＝まだCloudinaryに反映されていない
+        const { t, ...photo } = e;
+        photos.push(photo);
+      }
+    }
+    return photos;
+  } catch (e) {
+    return photos;
+  }
+}
 
 /* =========================
    Utils
@@ -1080,6 +1117,9 @@ async function loadList() {
       };
     }).filter(p => !deletedPhotos.has(p.id));
 
+    // Cloudinaryリスト未反映の直後アップロード写真を補完
+    allPhotos = mergeUploadCache(allPhotos);
+
     const ids = allPhotos.map(p => p.id);
     const batches = chunk(ids, LIKES_BATCH_SIZE);
 
@@ -1148,6 +1188,7 @@ async function uploadFiles(files) {
     });
 
     for (const p of newPhotos) if (!likes.has(p.id)) likes.set(p.id, 0);
+    saveUploadCache(newPhotos); // Cloudinaryリスト反映待ち対策
 
     allPhotos = [...newPhotos, ...allPhotos];
     allPhotos.sort((a, b) => (likes.get(b.id) || 0) - (likes.get(a.id) || 0));
