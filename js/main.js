@@ -13,8 +13,8 @@ const DELETED_PHOTOS_KEY = "wedding_deleted_v1";
 // アップロード直後〜Cloudinaryリスト反映までの空白を埋めるキャッシュ
 const UPLOAD_CACHE_KEY = "wedding_upload_cache_v1";
 
-// いいね数ポーリング間隔（5秒）
-const LIKES_POLL_MS = 5000;
+// いいね数ポーリング間隔（10秒）
+const LIKES_POLL_MS = 10000;
 // 新着写真チェック間隔（30秒）
 const PHOTOS_POLL_MS = 30000;
 

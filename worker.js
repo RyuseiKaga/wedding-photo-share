@@ -3,6 +3,9 @@
  *
  * KV binding name: LIKES
  *
+ * 設計: 全いいね数を "__all_likes__" キーに JSON で一括保存
+ *       → バッチ取得が 1 KV read で完結（旧: 写真N枚 → N reads）
+ *
  * Endpoints:
  *   POST /likes              いいね +1
  *   POST /likes/batch        いいね数を一括取得（body: { ids: [...] }）
@@ -20,6 +23,7 @@ const CORS = {
 
 const JSON_HEADERS = { ...CORS, "Content-Type": "application/json" };
 
+const LIKES_KEY  = "__all_likes__";
 const HIDDEN_KEY = "__hidden__";
 
 function json(data, status = 200) {
@@ -28,6 +32,11 @@ function json(data, status = 200) {
 
 function err(msg, status = 400) {
   return new Response(msg, { status, headers: CORS });
+}
+
+async function getAllLikes(env) {
+  const raw = await env.LIKES.get(LIKES_KEY);
+  try { return raw ? JSON.parse(raw) : {}; } catch { return {}; }
 }
 
 export default {
@@ -42,8 +51,8 @@ export default {
       return err("KV binding 'LIKES' is not configured", 500);
     }
 
-    const url  = new URL(request.url);
-    const path = url.pathname.replace(/\/$/, "") || "/";
+    const url    = new URL(request.url);
+    const path   = url.pathname.replace(/\/$/, "") || "/";
     const method = request.method;
 
     // ----------------------------------------
@@ -63,16 +72,18 @@ export default {
       const id = body?.id;
       if (!id || typeof id !== "string") return err("Missing or invalid 'id'");
 
-      const current = parseInt(await env.LIKES.get(id) || "0", 10);
-      const next = current + 1;
-      await env.LIKES.put(id, String(next));
+      const all  = await getAllLikes(env);
+      all[id]    = (all[id] || 0) + 1;
+      await env.LIKES.put(LIKES_KEY, JSON.stringify(all));
 
-      return json({ likes: next });
+      return json({ likes: all[id] });
     }
 
     // ----------------------------------------
     // POST /likes/batch  —  一括取得（JSON body）
     // GET  /likes/batch  —  一括取得（クエリ文字列）
+    //
+    // 1 KV read で全件返す（旧実装は N reads）
     // ----------------------------------------
     if (path === "/likes/batch") {
       let ids = [];
@@ -88,13 +99,9 @@ export default {
         return err("Method Not Allowed", 405);
       }
 
+      const all    = await getAllLikes(env);
       const result = {};
-      await Promise.all(
-        ids.map(async (id) => {
-          const val = await env.LIKES.get(id);
-          result[id] = val !== null ? parseInt(val, 10) : 0;
-        })
-      );
+      for (const id of ids) result[id] = all[id] || 0;
 
       return json({ likes: result });
     }
