@@ -1,0 +1,7 @@
+name = "wedding-like-api"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+[[kv_namespaces]]
+binding = "LIKES"
+id = "6d27aeb9e2d444518da2257ec025ef56"
