@@ -1247,7 +1247,7 @@ body::after{
 
 .dog-sprite {
   display: block;
-  background-image: url('../img/dog.png');
+  background-image: url('../img/dog.jpg');
   background-repeat: no-repeat;
   mix-blend-mode: multiply;
 }
