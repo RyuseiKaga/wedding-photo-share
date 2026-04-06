@@ -54,17 +54,12 @@ body.is-busy{
   padding: 28px 20px 14px;
   text-align:center;
 }
-.header::before{
-  content:"💍";
+.header-ornament{
   display:block;
-  font-size:30px;
-  line-height:1;
-  margin-bottom:10px;
-  animation: headerRingFloat 5s ease-in-out infinite;
-}
-@keyframes headerRingFloat{
-  0%,100%{ transform:translateY(0) rotate(-4deg); }
-  50%     { transform:translateY(-5px) rotate(4deg); }
+  width:160px;
+  height:22px;
+  margin:0 auto 14px;
+  opacity:.85;
 }
 .header h1{
   margin:0 0 6px;
@@ -1310,31 +1305,26 @@ body::after{
   overflow:hidden;
   cursor:pointer;
   background:
-    radial-gradient(ellipse 80% 60% at 50% 30%, rgba(47,111,94,.22), transparent 65%),
-    linear-gradient(160deg, #0c1e18 0%, #17302a 50%, #0e1c16 100%);
+    radial-gradient(ellipse 70% 55% at 50% 40%, rgba(47,111,94,.18), transparent 65%),
+    linear-gradient(160deg, #0b1d16 0%, #152a22 55%, #0c1c15 100%);
+}
+/* Subtle diamond-grid texture */
+.intro-overlay::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  opacity:.6;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48'%3E%3Cpath d='M24 3 L45 24 L24 45 L3 24 Z' fill='none' stroke='rgba(210%2C185%2C110%2C.07)' stroke-width='0.6'/%3E%3C/svg%3E");
+  background-size:48px 48px;
 }
 
+/* Curtain slide-up exit */
 .intro-overlay.intro-out{
   animation: introSlideUp 750ms cubic-bezier(.7,0,.3,1) forwards;
 }
 @keyframes introSlideUp{
   to{ transform:translateY(-100%); }
-}
-
-/* Particle container */
-.intro-particles{
-  position:absolute;
-  inset:0;
-  pointer-events:none;
-  overflow:hidden;
-}
-
-/* Individual particles are created by JS; animation defined here */
-@keyframes introParticleFloat{
-  0%  { transform:translateY(0) rotate(0deg) scale(1); opacity:0; }
-  8%  { opacity:.85; }
-  90% { opacity:.45; }
-  100%{ transform:translateY(-50vh) rotate(360deg) scale(.6); opacity:0; }
 }
 
 /* Content wrapper */
@@ -1345,89 +1335,114 @@ body::after{
   display:flex;
   flex-direction:column;
   align-items:center;
-  padding: 0 24px;
+  padding:0 32px;
 }
 
-/* Ring emoji */
-.intro-ring{
-  font-size: 72px;
-  line-height:1;
-  display:block;
-  filter: drop-shadow(0 0 28px rgba(255,210,80,.55));
-  animation:
-    introRingIn  900ms 80ms  cubic-bezier(.2,1.5,.4,1) both,
-    introRingGlow 2500ms 1000ms ease-in-out infinite;
+/* CSS-drawn interlocking rings */
+.intro-rings-wrap{
+  position:relative;
+  width:88px;
+  height:48px;
+  margin:0 auto;
 }
-@keyframes introRingIn{
-  from{ opacity:0; transform:scale(.25) translateY(-60px); }
-  to  { opacity:1; transform:scale(1) translateY(0); }
+.intro-ring-l,
+.intro-ring-r{
+  position:absolute;
+  width:48px;
+  height:48px;
+  border-radius:50%;
+  border:2px solid rgba(210,185,110,.78);
+  top:0;
+  box-shadow:
+    0 0 18px rgba(210,185,110,.18),
+    inset 0 0 8px rgba(210,185,110,.06);
 }
-@keyframes introRingGlow{
-  0%,100%{ filter:drop-shadow(0 0 28px rgba(255,210,80,.5)); }
-  50%    { filter:drop-shadow(0 0 60px rgba(255,210,80,.95)) drop-shadow(0 0 100px rgba(255,170,30,.45)); }
+.intro-ring-l{
+  left:0;
+  animation: introRingSlideL 1000ms 150ms cubic-bezier(.22,1,.36,1) both;
+}
+.intro-ring-r{
+  right:0;
+  animation: introRingSlideR 1000ms 150ms cubic-bezier(.22,1,.36,1) both;
+}
+@keyframes introRingSlideL{
+  from{ opacity:0; transform:translateX(-36px) scale(.7); }
+  to  { opacity:1; transform:translateX(0) scale(1); }
+}
+@keyframes introRingSlideR{
+  from{ opacity:0; transform:translateX(36px) scale(.7); }
+  to  { opacity:1; transform:translateX(0) scale(1); }
 }
 
-/* Title text */
+/* Subtle ring pulse after settling */
+.intro-ring-l,
+.intro-ring-r{
+  animation-fill-mode: both;
+}
+
+/* Title */
 .intro-title{
-  color:#fff;
-  font-size: clamp(20px, 5.5vw, 30px);
-  font-weight:900;
-  letter-spacing:.10em;
-  margin-top:22px;
-  text-shadow: 0 2px 24px rgba(0,0,0,.55);
-  animation: introFadeUp 800ms 580ms cubic-bezier(.2,1,.4,1) both;
+  color:rgba(255,255,255,.92);
+  font-size: clamp(17px, 4.5vw, 26px);
+  font-weight:300;
+  letter-spacing:.22em;
+  text-transform:uppercase;
+  margin-top:28px;
+  text-shadow:0 1px 18px rgba(0,0,0,.45);
+  animation: introFadeUp 900ms 680ms cubic-bezier(.22,1,.36,1) both;
 }
 
-/* Gold separator line */
+/* Thin gold separator */
 .intro-divider{
-  height:2px;
+  height:1px;
   width:0;
-  background: linear-gradient(90deg, transparent, rgba(255,210,80,.85), transparent);
-  margin:14px auto;
-  border-radius:999px;
-  animation: introDividerExpand 700ms 900ms ease-out both;
+  background:linear-gradient(90deg, transparent, rgba(210,185,110,.70), transparent);
+  margin:18px auto;
+  animation: introDividerExpand 800ms 1000ms ease-out both;
 }
 @keyframes introDividerExpand{
   from{ width:0; opacity:0; }
-  to  { width:60px; opacity:1; }
+  to  { width:56px; opacity:1; }
 }
 
 /* Subtitle */
 .intro-sub{
-  color:rgba(255,255,255,.60);
-  font-size:13px;
-  font-weight:600;
-  letter-spacing:.16em;
-  animation: introFadeUp 700ms 980ms ease-out both;
+  color:rgba(255,255,255,.42);
+  font-size:12px;
+  font-weight:400;
+  letter-spacing:.20em;
+  animation: introFadeUp 700ms 1100ms ease-out both;
 }
 
 @keyframes introFadeUp{
-  from{ opacity:0; transform:translateY(18px); }
+  from{ opacity:0; transform:translateY(14px); }
   to  { opacity:1; transform:translateY(0); }
 }
 
 /* Skip hint */
 .intro-hint{
   position:absolute;
-  bottom: calc(28px + env(safe-area-inset-bottom));
+  bottom:calc(28px + env(safe-area-inset-bottom));
   left:0; right:0;
   text-align:center;
-  color:rgba(255,255,255,.28);
-  font-size:12px;
-  font-weight:600;
-  letter-spacing:.12em;
+  color:rgba(255,255,255,.22);
+  font-size:11px;
+  font-weight:400;
+  letter-spacing:.16em;
   z-index:2;
-  animation: introFadeUp 600ms 1500ms ease-out both;
+  animation: introFadeUp 500ms 1600ms ease-out both;
 }
 
 /* Respect reduced-motion */
 @media (prefers-reduced-motion: reduce){
-  .intro-overlay{ animation:none !important; }
+  .intro-overlay,
+  .intro-overlay.intro-out{ animation:none !important; }
   .intro-overlay.intro-out{ display:none; }
-  .intro-ring,
+  .intro-ring-l,
+  .intro-ring-r,
   .intro-title,
   .intro-divider,
   .intro-sub,
   .intro-hint{ animation:none !important; opacity:1 !important; transform:none !important; }
-  .intro-divider{ width:60px; }
+  .intro-divider{ width:56px; }
 }
