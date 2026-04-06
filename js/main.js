@@ -1717,7 +1717,7 @@ function showSummary() {
       appleBtn.target = "_blank";
       appleBtn.rel = "noopener";
       appleBtn.setAttribute("aria-label", `${t.name}をApple Musicで聴く`);
-      appleBtn.innerHTML = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" width="17" height="17" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#FA2D48"/><rect x="8.2" y="8.2" width="7.6" height="1.1" rx="0.55" fill="white"/><rect x="8.2" y="8.2" width="1.1" height="5.8" rx="0.55" fill="white"/><rect x="14.7" y="8.2" width="1.1" height="4.8" rx="0.55" fill="white"/><ellipse cx="9.6" cy="14.6" rx="1.4" ry="1.0" fill="white" transform="rotate(-18 9.6 14.6)"/><ellipse cx="15.6" cy="13.6" rx="1.4" ry="1.0" fill="white" transform="rotate(-18 15.6 13.6)"/></svg>`;
+      appleBtn.innerHTML = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" width="17" height="17" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#FA2D48"/><path fill="white" d="M7.8 9.2 L16.8 7.8 L16.8 9.5 L7.8 10.9 Z"/><rect x="7.2" y="9.2" width="1.5" height="7.8" rx="0.75" fill="white"/><rect x="15.4" y="7.8" width="1.5" height="7.2" rx="0.75" fill="white"/><ellipse cx="9.2" cy="17.2" rx="2.8" ry="2.0" fill="white" transform="rotate(-25 9.2 17.2)"/><ellipse cx="17.2" cy="15.2" rx="2.2" ry="1.6" fill="white" transform="rotate(-25 17.2 15.2)"/></svg>`;
 
       links.appendChild(spotifyBtn);
       links.appendChild(appleBtn);
