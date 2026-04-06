@@ -1531,4 +1531,149 @@ async function boot() {
   setInterval(pollForNewPhotos, PHOTOS_POLL_MS);  // 新着写真: 30秒ごと
 }
 
+/* =========================
+   Dog Mascot Animation
+========================= */
+(function initDog() {
+  const stage  = document.getElementById("dogStage");
+  const mascot = document.getElementById("dogMascot");
+  const sprite = document.getElementById("dogSprite");
+  if (!stage || !mascot || !sprite) return;
+
+  // ---- スプライト座標 (元画像 約1130×950px 想定) ----
+  // ※ img/dog.png を差し替えたら x,y,w,h を微調整してください
+  const IMG_W = 1130, IMG_H = 950;
+  const DISP_H = 82; // 表示上の犬の高さ(px)
+
+  function pose(x, y, w, h) {
+    const s = DISP_H / h;
+    return {
+      w: Math.round(w * s),
+      bs: `${Math.round(IMG_W * s)}px ${Math.round(IMG_H * s)}px`,
+      bp: `${Math.round(-x * s)}px ${Math.round(-y * s)}px`,
+    };
+  }
+
+  const POSES = {
+    walk:  pose( 30,  10, 250, 210),  // 歩き（左右共用、flip で反転）
+    leap:  pose(350,  15, 370, 270),  // ジャンプ
+    sit:   pose(810,  15, 240, 240),  // お座り
+    roll:  pose( 25, 560, 270, 310),  // ごろん
+    sniff: pose(345, 590, 350, 260),  // においかぎ
+  };
+
+  let posX    = 20;
+  let dir     = 1;       // 1=右 / -1=左
+  const SPEED = 55;      // px/秒
+  let pauseUntil = 0;
+  let reactUntil = 0;
+  let curPose    = "walk";
+  let lastTs     = null;
+
+  function applyPose(name, flipX) {
+    const p = POSES[name] || POSES.walk;
+    mascot.style.width  = p.w + "px";
+    mascot.style.height = DISP_H + "px";
+    sprite.style.width  = p.w + "px";
+    sprite.style.height = DISP_H + "px";
+    sprite.style.backgroundSize     = p.bs;
+    sprite.style.backgroundPosition = p.bp;
+    sprite.style.transform = flipX ? "scaleX(-1)" : "";
+    curPose = name;
+  }
+
+  function spawnHeart() {
+    const el = document.createElement("span");
+    el.className = "dog-heart";
+    el.textContent = ["💕","🐾","✨","💛"][Math.floor(Math.random()*4)];
+    el.style.left = (posX + POSES[curPose].w / 2 - 11) + "px";
+    el.style.bottom = DISP_H + "px";
+    stage.appendChild(el);
+    setTimeout(() => el.remove(), 950);
+  }
+
+  // タップ反応
+  stage.addEventListener("click", () => {
+    const now = performance.now();
+    if (now < reactUntil) return;
+    reactUntil = now + 1400;
+    pauseUntil = now + 1400;
+
+    const reactPose = Math.random() < 0.5 ? "leap" : "roll";
+    applyPose(reactPose, dir < 0);
+    spawnHeart();
+
+    // バウンス
+    const start = now;
+    function bounce(ts) {
+      const t = (ts - start) / 1400;
+      if (t >= 1) {
+        mascot.style.transform = `translateX(${posX}px) translateY(0px)`;
+        return;
+      }
+      const y  = -Math.sin(t * Math.PI) * 22;
+      const sc = 1 + Math.sin(t * Math.PI) * 0.12;
+      mascot.style.transform = `translateX(${posX}px) translateY(${y}px) scale(${sc})`;
+      requestAnimationFrame(bounce);
+    }
+    requestAnimationFrame(bounce);
+  });
+
+  applyPose("walk", false);
+
+  function tick(ts) {
+    if (lastTs === null) { lastTs = ts; requestAnimationFrame(tick); return; }
+    const dt  = Math.min(ts - lastTs, 50) / 1000; // 秒
+    lastTs = ts;
+
+    const stageW = stage.clientWidth;
+    const dogW   = POSES[curPose]?.w || POSES.walk.w;
+    const reacting = ts < reactUntil;
+    const paused   = ts < pauseUntil;
+
+    if (!reacting && !paused) {
+      posX += dir * SPEED * dt;
+
+      // 壁バウンス
+      if (dir > 0 && posX + dogW >= stageW) {
+        posX = stageW - dogW;
+        dir  = -1;
+        maybeIdle(ts, stageW);
+      } else if (dir < 0 && posX <= 0) {
+        posX = 0;
+        dir  = 1;
+        maybeIdle(ts, stageW);
+      } else {
+        applyPose("walk", dir < 0);
+      }
+
+      // 歩きのボブ
+      const bob = Math.sin(ts * 0.012) * 2.5;
+      mascot.style.transform = `translateX(${posX}px) translateY(${bob}px)`;
+
+    } else if (!reacting && paused) {
+      // アイドル時の小さなボブ
+      const bob = Math.sin(ts * 0.004) * 1.2;
+      mascot.style.transform = `translateX(${posX}px) translateY(${bob}px)`;
+    }
+
+    requestAnimationFrame(tick);
+  }
+
+  function maybeIdle(ts, stageW) {
+    if (Math.random() < 0.45) {
+      const idlePose = Math.random() < 0.5 ? "sit" : "sniff";
+      applyPose(idlePose, dir < 0);
+      pauseUntil = ts + 1400 + Math.random() * 2200;
+      // アイドル終了後に歩き再開
+      setTimeout(() => { if (ts < pauseUntil + 100) applyPose("walk", dir < 0); },
+        pauseUntil - ts + 50);
+    } else {
+      applyPose("walk", dir < 0);
+    }
+  }
+
+  requestAnimationFrame(tick);
+}());
+
 boot();

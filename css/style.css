@@ -1224,3 +1224,43 @@ body::after{
     transition: none !important;
   }
 }
+/* =========================
+   Dog Mascot
+========================= */
+.dog-stage {
+  position: relative;
+  width: 100%;
+  height: 88px;
+  overflow: hidden;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.dog-mascot {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  will-change: transform;
+}
+
+.dog-sprite {
+  display: block;
+  background-image: url('../img/dog.png');
+  background-repeat: no-repeat;
+  mix-blend-mode: multiply;
+}
+
+@keyframes dogHeartPop {
+  0%   { transform: scale(0) translateY(0);   opacity: 1; }
+  60%  { transform: scale(1.3) translateY(-20px); opacity: 1; }
+  100% { transform: scale(1) translateY(-36px); opacity: 0; }
+}
+.dog-heart {
+  position: absolute;
+  font-size: 22px;
+  pointer-events: none;
+  animation: dogHeartPop 0.9s ease-out forwards;
+  z-index: 10;
+}
