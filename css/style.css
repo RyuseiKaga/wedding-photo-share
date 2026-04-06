@@ -300,22 +300,30 @@ body.is-busy{
   bottom:0;
   z-index:40;
 
-  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
-  background: rgba(255,255,255,.88);
+  padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+  background: rgba(255,255,255,.92);
   border-top: 1px solid rgba(31,41,55,.10);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 
   display:flex;
-  justify-content:space-between;
-  align-items:center;
-  gap:10px;
+  flex-direction:column;
+  gap:8px;
 }
 
 .bulkbar-left{
   display:flex;
   align-items:center;
   gap:10px;
+}
+
+.bulkbar-right{
+  display:flex;
+  gap:8px;
+}
+
+.bulkbar-right .bulkbar-btn{
+  flex:1;
 }
 
 .bulkbar-count{
@@ -1035,7 +1043,7 @@ body.is-busy{
 
 .victory-hint{
   position:absolute;
-  bottom:28px;
+  bottom:calc(28px + env(safe-area-inset-bottom));
   left:0; right:0;
   text-align:center;
   z-index:9993;
@@ -1044,7 +1052,11 @@ body.is-busy{
   font-weight:700;
   letter-spacing:.06em;
   text-shadow: 0 1px 4px rgba(0,0,0,.6);
-  animation: victoryBadgeIn 500ms 700ms ease-out both;
+  animation: victoryHintIn 500ms 700ms ease-out both;
+}
+@keyframes victoryHintIn{
+  from{ opacity:0; transform:translateY(8px); }
+  to  { opacity:1; transform:translateY(0); }
 }
 
 .victory-confetti{
