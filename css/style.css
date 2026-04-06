@@ -957,6 +957,134 @@ body.is-busy{
     animation: none !important;
   }
 }
+
+/* =========================
+   Victory Overlay（1位獲得モーダル）
+========================= */
+.victory-overlay{
+  position:fixed;
+  inset:0;
+  z-index:9990;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background: rgba(0,0,0,.82);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  cursor:pointer;
+  overflow:hidden;
+  animation: victoryBgIn 350ms ease-out;
+}
+@keyframes victoryBgIn{
+  from{ opacity:0; }
+  to  { opacity:1; }
+}
+.victory-overlay.victory-out{
+  animation: victoryBgOut 450ms ease-in forwards;
+}
+@keyframes victoryBgOut{
+  to{ opacity:0; transform:scale(.97); }
+}
+
+.victory-inner{
+  position:relative;
+  width:min(88vw, 480px);
+  border-radius: 22px;
+  overflow:hidden;
+  z-index:2;
+  box-shadow:
+    0 0 0 3px  rgba(255,211,94,.90),
+    0 0 0 10px rgba(255,211,94,.28),
+    0 40px 100px rgba(0,0,0,.70);
+  animation: victoryCardIn 520ms 40ms cubic-bezier(.2,.9,.15,1) both;
+}
+@keyframes victoryCardIn{
+  from{ opacity:0; transform:scale(.72) translateY(28px); }
+  to  { opacity:1; transform:scale(1) translateY(0); }
+}
+
+.victory-img{
+  width:100%;
+  display:block;
+  min-height:180px;
+  background:#0b1220;
+}
+
+.victory-badge{
+  position:absolute;
+  top:16px;
+  left:50%;
+  transform:translateX(-50%);
+  z-index:3;
+  background: linear-gradient(135deg, rgba(255,225,80,.97), rgba(255,155,20,.92));
+  color: rgba(20,20,20,.92);
+  font-weight:900;
+  font-size:20px;
+  letter-spacing:.12em;
+  padding: 10px 26px;
+  border-radius: 999px;
+  white-space:nowrap;
+  border: 1px solid rgba(255,255,255,.38);
+  box-shadow: 0 10px 30px rgba(255,150,20,.45);
+  animation: victoryBadgeIn 600ms 250ms cubic-bezier(.2,.9,.2,1) both;
+}
+@keyframes victoryBadgeIn{
+  from{ opacity:0; transform:translateX(-50%) scale(.5) translateY(-12px); }
+  to  { opacity:1; transform:translateX(-50%) scale(1) translateY(0); }
+}
+
+.victory-hint{
+  position:absolute;
+  bottom:14px;
+  left:0; right:0;
+  text-align:center;
+  z-index:3;
+  color:rgba(255,255,255,.70);
+  font-size:12px;
+  font-weight:700;
+  letter-spacing:.04em;
+  text-shadow: 0 1px 4px rgba(0,0,0,.5);
+  animation: victoryBadgeIn 500ms 600ms ease-out both;
+}
+
+.victory-confetti{
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  overflow:hidden;
+  z-index:10;
+}
+.victory-confetti i{
+  position:absolute;
+  top:-24px;
+  opacity:0;
+  will-change:transform,opacity;
+}
+@keyframes vcFall1{
+  0%  { transform:translateY(0) rotate(0deg); opacity:0; }
+  8%  { opacity:1; }
+  100%{ transform:translateY(110vh) rotate(480deg); opacity:0; }
+}
+@keyframes vcFall2{
+  0%  { transform:translateY(0) rotate(0deg); opacity:0; }
+  10% { opacity:.95; }
+  100%{ transform:translateY(110vh) rotate(-520deg); opacity:0; }
+}
+@keyframes vcFall3{
+  0%  { transform:translateY(0) rotate(0deg) scaleX(1); opacity:0; }
+  10% { opacity:1; }
+  50% { transform:translateY(55vh) rotate(200deg) scaleX(-1); opacity:.85; }
+  100%{ transform:translateY(110vh) rotate(400deg) scaleX(1); opacity:0; }
+}
+
+@media(prefers-reduced-motion:reduce){
+  .victory-overlay,
+  .victory-inner,
+  .victory-badge,
+  .victory-hint,
+  .victory-confetti i{ animation:none !important; }
+}
+
 /* =========================
    HOTFIX: Confetti visibility stabilize (ADD ONLY)
    - 二重定義の競合を避けて、常にカード上に見えるようにする

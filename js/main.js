@@ -633,10 +633,82 @@ async function postLike(id) {
 /* =========================
    ✅ TOP swap ULTRA（2位→1位に入れ替わった時だけ）
 ========================= */
+/* =========================
+   Victory Overlay（1位獲得モーダル）
+========================= */
+function showVictoryOverlay(photo) {
+  if (!photo) return;
+
+  // 既存があれば即削除
+  const existing = document.querySelector(".victory-overlay");
+  if (existing) existing.remove();
+
+  const overlay = document.createElement("div");
+  overlay.className = "victory-overlay";
+
+  // 写真カード
+  const inner = document.createElement("div");
+  inner.className = "victory-inner";
+
+  const badge = document.createElement("div");
+  badge.className = "victory-badge";
+  badge.textContent = "NO. 1";
+
+  const img = document.createElement("img");
+  img.className = "victory-img";
+  img.alt = "1位の写真";
+  img.src = photo.view;
+
+  const hint = document.createElement("div");
+  hint.className = "victory-hint";
+  hint.textContent = "タップで閉じる";
+
+  inner.appendChild(badge);
+  inner.appendChild(img);
+  inner.appendChild(hint);
+
+  // 紙吹雪（画面全体）
+  const confetti = document.createElement("div");
+  confetti.className = "victory-confetti";
+  const colors = ["c1","c2","c3","c4","c5","c6"];
+  const anims  = ["vcFall1","vcFall2","vcFall3"];
+  for (let i = 0; i < 70; i++) {
+    const p = document.createElement("i");
+    p.className = colors[i % 6];
+    p.style.left = `${Math.random() * 102}%`;
+    const w = 6 + Math.random() * 10;
+    const h = 8 + Math.random() * 14;
+    p.style.width  = `${w}px`;
+    p.style.height = `${h}px`;
+    p.style.borderRadius = Math.random() > .45 ? "50%" : `${1 + Math.random() * 3}px`;
+    const dur   = 1800 + Math.random() * 1800;
+    const delay = Math.random() * 800;
+    p.style.animation = `${anims[i % 3]} ${dur}ms ease-out ${delay}ms forwards`;
+    confetti.appendChild(p);
+  }
+
+  overlay.appendChild(inner);
+  overlay.appendChild(confetti);
+  document.body.appendChild(overlay);
+
+  function dismiss() {
+    if (!overlay.parentNode) return;
+    overlay.classList.add("victory-out");
+    setTimeout(() => { if (overlay.parentNode) overlay.remove(); }, 480);
+  }
+
+  overlay.addEventListener("click", dismiss);
+  setTimeout(dismiss, 3400);
+}
+
 function triggerTopSwapUltra(topId) {
   const ui = uiById.get(topId);
   const card = ui?.card;
   if (!card) return;
+
+  // ビクトリーモーダル（写真を画面中央に大きく表示）
+  const topPhoto = ui?.photo;
+  showVictoryOverlay(topPhoto);
 
   // カードアニメ
   card.classList.remove("top-swap-ultra");
