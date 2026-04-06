@@ -1225,89 +1225,138 @@ body::after{
   }
 }
 /* =========================
-   Dog Mascot
+   Photo Count Header
 ========================= */
-.dog-stage {
-  position: relative;
-  width: 100%;
-  height: 88px;
-  overflow: hidden;
+.photo-count {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 600;
+  margin: 2px 0 0;
+  min-height: 1.4em;
+}
+
+/* =========================
+   Sort Toggle
+========================= */
+.sort-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 12px 8px;
+}
+.sort-toggle-btn {
+  border: 1.5px solid rgba(47,111,94,.35);
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 999px;
   cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  user-select: none;
-  -webkit-user-select: none;
+  transition: background .2s, color .2s;
+}
+.sort-toggle-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
 }
 
-.dog-mascot {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  will-change: transform;
+/* =========================
+   Podium (Top 3)
+========================= */
+.podium-section {
+  padding: 0 12px 16px;
 }
-
-.dog-sprite {
+.podium-label {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+.podium-row {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  align-items: flex-end;
+}
+.podium-card {
+  flex: 1;
+  max-width: 140px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 4px 16px rgba(0,0,0,.10);
+  cursor: pointer;
+  position: relative;
+  transition: transform .18s;
+}
+.podium-card:active { transform: scale(.96); }
+.podium-card.rank-1 {
+  box-shadow:
+    0 0 0 2.5px rgba(255,211,60,.90),
+    0 0 0 6px  rgba(255,211,60,.22),
+    0 8px 28px rgba(255,180,20,.28);
+  transform: scale(1.04);
+  z-index: 2;
+}
+.podium-card.rank-1:active { transform: scale(1.00); }
+.podium-thumb {
+  width: 100%;
+  aspect-ratio: 1/1;
+  object-fit: cover;
   display: block;
-  background-image: url('../img/dog.jpg');
-  background-repeat: no-repeat;
-  mix-blend-mode: multiply;   /* 白背景を透明化 */
-  transition: opacity 0.18s ease;
 }
-
-/* ---- 歩行サイクル（右向き） ---- */
-@keyframes dogWalkR {
-  0%,100% { transform: rotate(-2.5deg) translateY(0px); }
-  25%     { transform: rotate(0deg)    translateY(-4px) scaleY(1.03); }
-  50%     { transform: rotate(2.5deg)  translateY(0px); }
-  75%     { transform: rotate(0deg)    translateY(-4px) scaleY(1.03); }
-}
-/* ---- 歩行サイクル（左向き・scaleX反転込み） ---- */
-@keyframes dogWalkL {
-  0%,100% { transform: scaleX(-1) rotate(2.5deg)  translateY(0px); }
-  25%     { transform: scaleX(-1) rotate(0deg)     translateY(-4px) scaleY(1.03); }
-  50%     { transform: scaleX(-1) rotate(-2.5deg)  translateY(0px); }
-  75%     { transform: scaleX(-1) rotate(0deg)     translateY(-4px) scaleY(1.03); }
-}
-/* ---- お座り（呼吸） ---- */
-@keyframes dogSitR {
-  0%,100% { transform: translateY(0px) scaleY(1); }
-  50%     { transform: translateY(-1.5px) scaleY(1.02); }
-}
-@keyframes dogSitL {
-  0%,100% { transform: scaleX(-1) translateY(0px) scaleY(1); }
-  50%     { transform: scaleX(-1) translateY(-1.5px) scaleY(1.02); }
-}
-/* ---- においかぎ ---- */
-@keyframes dogSniffR {
-  0%,100% { transform: rotate(0deg)  translateY(0px); }
-  35%,65% { transform: rotate(7deg)  translateY(3px); }
-}
-@keyframes dogSniffL {
-  0%,100% { transform: scaleX(-1) rotate(0deg)  translateY(0px); }
-  35%,65% { transform: scaleX(-1) rotate(-7deg) translateY(3px); }
-}
-/* ---- タップリアクション ---- */
-@keyframes dogLeap {
-  0%     { transform: scale(1)    translateY(0px)   rotate(0deg); }
-  35%    { transform: scale(1.14) translateY(-18px) rotate(-8deg); }
-  65%    { transform: scale(1.06) translateY(-6px)  rotate(4deg); }
-  100%   { transform: scale(1)    translateY(0px)   rotate(0deg); }
-}
-@keyframes dogRoll {
-  0%   { transform: rotate(0deg)   scale(1); }
-  40%  { transform: rotate(180deg) scale(0.9); }
-  80%  { transform: rotate(340deg) scale(1.05); }
-  100% { transform: rotate(360deg) scale(1); }
-}
-
-@keyframes dogHeartPop {
-  0%   { transform: scale(0) translateY(0);       opacity: 1; }
-  60%  { transform: scale(1.3) translateY(-20px); opacity: 1; }
-  100% { transform: scale(1)   translateY(-36px); opacity: 0; }
-}
-.dog-heart {
+.podium-medal {
   position: absolute;
+  top: 6px;
+  left: 6px;
   font-size: 22px;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,.35));
+  line-height: 1;
+}
+.podium-likes {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 900;
+  color: #e05;
+  padding: 5px 8px 6px;
+}
+.podium-likes::before { content: "❤"; font-size: 12px; }
+
+/* =========================
+   NEW badge
+========================= */
+.badge-new {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: linear-gradient(135deg, #ff5fa0, #ff3e6c);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  padding: 2px 7px;
+  border-radius: 999px;
   pointer-events: none;
-  animation: dogHeartPop 0.9s ease-out forwards;
-  z-index: 10;
+  box-shadow: 0 2px 6px rgba(255,62,108,.40);
+}
+
+/* =========================
+   Like Heart Float (TikTok style)
+========================= */
+@keyframes heartFloat {
+  0%   { transform: translateY(0)    scale(0) rotate(var(--rot)); opacity: 1; }
+  20%  { transform: translateY(-20px) scale(1.2) rotate(var(--rot)); opacity: 1; }
+  80%  { transform: translateY(-90px) scale(1)  rotate(var(--rot)); opacity: .7; }
+  100% { transform: translateY(-120px) scale(.8) rotate(var(--rot)); opacity: 0; }
+}
+.like-heart-float {
+  position: fixed;
+  pointer-events: none;
+  font-size: 22px;
+  z-index: 9999;
+  animation: heartFloat var(--dur) ease-out var(--delay) forwards;
 }

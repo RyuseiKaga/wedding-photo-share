@@ -13,13 +13,14 @@
   <link rel="preconnect" href="https://res.cloudinary.com" crossorigin>
   <link rel="preconnect" href="https://api.cloudinary.com" crossorigin>
 
-  <link rel="stylesheet" href="css/style.css?v=85" />
+  <link rel="stylesheet" href="css/style.css?v=87" />
 </head>
 
 <body>
   <header class="header">
     <h1>写真をシェアしよう！</h1>
     <p>チェックで選択 → 一括保存</p>
+    <p id="photoCount" class="photo-count"></p>
   </header>
 
   <main>
@@ -30,11 +31,11 @@
       </label>
     </section>
 
-    <div id="dogStage" class="dog-stage" title="なでなで♪">
-      <div id="dogMascot" class="dog-mascot">
-        <div id="dogSprite" class="dog-sprite"></div>
-      </div>
+    <div class="sort-bar">
+      <button id="sortToggle" class="sort-toggle-btn" type="button">🕐 時系列で見る</button>
     </div>
+
+    <section id="podium" class="podium-section" hidden></section>
 
     <section class="gallery" id="gallery"></section>
     <div id="galleryEmpty" class="gallery-empty" hidden>
@@ -103,6 +104,6 @@
     </div>
   </div>
 
-  <script defer src="js/main.js?v=85"></script>
+  <script defer src="js/main.js?v=87"></script>
 </body>
 </html>
