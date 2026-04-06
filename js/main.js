@@ -1434,7 +1434,15 @@ async function pollForNewPhotos() {
 
     // 既存にない・削除済みでもない写真があるか確認
     const hasNew = resources.some(r => !currentIds.has(r.public_id) && !deletedPhotos.has(r.public_id));
-    if (!hasNew) return;
+
+    if (!hasNew) {
+      // 新写真なし → 既存写真のいいね数だけ更新してリソート
+      const ids = allPhotos.map(p => p.id);
+      const batches = chunk(ids, LIKES_BATCH_SIZE);
+      for (const batch of batches) await fetchLikesBatch(batch);
+      resortByLikesAndRerender();
+      return;
+    }
 
     // 新しい写真のいいね数だけ取得（既存は保持）
     resources.sort((a, b) => (b.version || 0) - (a.version || 0));
