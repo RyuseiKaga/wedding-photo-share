@@ -1731,6 +1731,31 @@ function showSummary() {
 
   modal.hidden = false;
   document.body.classList.add("is-busy");
+
+  // 写真の入場アニメーション（開くたびに再生）
+  requestAnimationFrame(() => animateSummaryPhotos());
+}
+
+function animateSummaryPhotos() {
+  const photosEl = document.getElementById("smryPhotos");
+  if (!photosEl) return;
+  const photoEls = [...photosEl.querySelectorAll(".smry-photo")];
+  if (!photoEls.length) return;
+
+  // リセット
+  photosEl.classList.add("smry-photos-anim");
+  photoEls.forEach(el => el.classList.remove("smry-photo-in"));
+
+  // ダブル RAF でリセットを確実に反映させてからアニメ開始
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      photoEls.forEach((el, i) => {
+        // hero(0): 220ms, 2〜5枚目: 380ms から 140ms 刻みでスタガー
+        const delay = i === 0 ? 220 : 380 + (i - 1) * 140;
+        setTimeout(() => el.classList.add("smry-photo-in"), delay);
+      });
+    });
+  });
 }
 
 function closeSummary() {
@@ -1749,7 +1774,7 @@ function closeSummary() {
 ========================= */
 function showIntro() {
   const overlay = document.getElementById("introOverlay");
-  if (!overlay) return;
+  if (!overlay) return Promise.resolve();
 
   const post = isPostWedding();
 
@@ -1761,26 +1786,26 @@ function showIntro() {
     if (subEl)   subEl.textContent   = "今日は来てくれてありがとうございました";
   }
 
-  const dismiss = () => {
-    overlay.classList.add("intro-out");
-    setTimeout(() => overlay.remove(), 800);
-  };
+  return new Promise(resolve => {
+    const dismiss = () => {
+      overlay.classList.add("intro-out");
+      setTimeout(() => { overlay.remove(); resolve(); }, 800);
+    };
 
-  // Post-wedding は少し長め、通常は 3.8s
-  const timer = setTimeout(dismiss, post ? 4800 : 3800);
+    const timer = setTimeout(dismiss, post ? 4800 : 3800);
 
-  // Tap / click to skip
-  overlay.addEventListener("click", () => {
-    clearTimeout(timer);
-    dismiss();
-  }, { once: true });
+    overlay.addEventListener("click", () => {
+      clearTimeout(timer);
+      dismiss();
+    }, { once: true });
+  });
 }
 
 /* =========================
    Boot
 ========================= */
 async function boot() {
-  showIntro();
+  const introFinished = showIntro(); // Promise: resolves when overlay is gone
 
   hardCloseViewer();
   forceHideOverlay();
@@ -1790,7 +1815,7 @@ async function boot() {
   initPostWeddingUI();
 
   try {
-    await loadList();
+    await loadList(); // 写真読み込み完了を待つ
   } catch (e) {
     console.error(e);
     forceHideOverlay();
@@ -1800,8 +1825,14 @@ async function boot() {
   setBulkBar();
 
   // 初回ロード後に自動ポーリング開始
-  setInterval(pollLikes, LIKES_POLL_MS);          // いいね数: 5秒ごと
-  setInterval(pollForNewPhotos, PHOTOS_POLL_MS);  // 新着写真: 30秒ごと
+  setInterval(pollLikes, LIKES_POLL_MS);
+  setInterval(pollForNewPhotos, PHOTOS_POLL_MS);
+
+  // Post-wedding: 写真ロード済み・イントロ終了後にサマリーを自動表示
+  if (isPostWedding()) {
+    await introFinished;
+    showSummary();
+  }
 }
 
 /* =========================

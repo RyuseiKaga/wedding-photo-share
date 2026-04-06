@@ -1653,6 +1653,22 @@ body::after{
 .smry-photo:active .smry-photo-img{
   transform: scale(.98);
 }
+
+/* 写真入場アニメーション */
+.smry-photos-anim .smry-photo{
+  opacity: 0;
+  transform: scale(.60) translateY(32px);
+  transition: none;
+}
+.smry-photos-anim .smry-photo.smry-photo-in{
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  transition: opacity 620ms ease, transform 620ms cubic-bezier(.2, 1.45, .3, 1);
+}
+/* hero は少し大きくオーバーシュート */
+.smry-photos-anim .smry-photo:first-child.smry-photo-in{
+  transition: opacity 700ms ease, transform 700ms cubic-bezier(.15, 1.5, .3, 1);
+}
 .smry-photo-rank{
   position: absolute;
   top: 8px;
