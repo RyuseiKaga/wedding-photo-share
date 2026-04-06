@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://res.cloudinary.com" crossorigin>
   <link rel="preconnect" href="https://api.cloudinary.com" crossorigin>
 
-  <link rel="stylesheet" href="css/style.css?v=69" />
+  <link rel="stylesheet" href="css/style.css?v=70" />
 </head>
 
 <body>
@@ -31,6 +31,11 @@
     </section>
 
     <section class="gallery" id="gallery"></section>
+    <div id="galleryEmpty" class="gallery-empty" hidden>
+      <div class="gallery-empty-icon" aria-hidden="true"></div>
+      <p class="gallery-empty-title">写真がまだありません</p>
+      <p class="gallery-empty-sub">「写真をアップロード」から最初の1枚を追加しましょう</p>
+    </div>
     <div id="sentinel" style="height:1px;"></div>
   </main>
 
@@ -92,6 +97,6 @@
     </div>
   </div>
 
-  <script defer src="js/main.js?v=69"></script>
+  <script defer src="js/main.js?v=70"></script>
 </body>
 </html>

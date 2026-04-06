@@ -243,6 +243,54 @@ body.is-busy{
 }
 
 /* =========================
+   Gallery empty state
+========================= */
+.gallery-empty{
+  padding: 64px 24px 80px;
+  text-align:center;
+  color: var(--muted);
+}
+
+.gallery-empty-icon{
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  background: var(--accentSoft);
+  margin: 0 auto 18px;
+  position: relative;
+}
+/* カメラっぽいシルエットをCSSだけで */
+.gallery-empty-icon::before{
+  content:"";
+  position:absolute;
+  inset: 14px 12px;
+  border: 2.5px solid var(--accent);
+  border-radius: 4px;
+}
+.gallery-empty-icon::after{
+  content:"";
+  position:absolute;
+  top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  width:12px;height:12px;
+  border-radius:50%;
+  border: 2px solid var(--accent);
+}
+
+.gallery-empty-title{
+  margin: 0 0 8px;
+  font-weight:900;
+  font-size:16px;
+  color: var(--text);
+}
+
+.gallery-empty-sub{
+  margin: 0;
+  font-size:13px;
+  line-height:1.7;
+}
+
+/* =========================
    Bulk bar (bottom fixed)
 ========================= */
 .bulkbar{
@@ -437,6 +485,11 @@ body.is-busy{
 .viewer-media{
   position:relative;
   background:#0b1220;
+  /* 縦長写真対応: viewer-sheet内でスクロール可能にする */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .viewer-media img{
