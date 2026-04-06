@@ -10,7 +10,10 @@ const LIKE_API = "https://wedding-like-api.karo2kai.workers.dev";
 
 // 結婚式終了時刻（JST）。この時刻を過ぎると特別モードへ
 const WEDDING_END = new Date("2026-04-11T21:30:00+09:00");
-function isPostWedding() { return Date.now() >= WEDDING_END.getTime(); }
+function isPostWedding() {
+  if (new URLSearchParams(location.search).get("preview") === "postwedding") return true;
+  return Date.now() >= WEDDING_END.getTime();
+}
 
 // 結婚式で流した曲リスト（Spotifyプレイリスト: 4/11 結婚式）
 const WEDDING_TRACKS = [
