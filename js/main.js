@@ -1272,7 +1272,7 @@ function bindEvents() {
     } catch (err) {
       console.error(err);
       forceHideOverlay();
-      alert("アップロードに失敗しました。電波が弱い場合は枚数を減らして試してください。");
+      alert("アップロードに失敗しました。電波が弱い場合は枚数を減らして試してください。\n解決しない場合は新郎にお問い合わせください。");
     }
   });
 
@@ -1287,7 +1287,7 @@ function bindEvents() {
       await bulkSaveSelected();
     } catch (e) {
       console.error(e);
-      alert("一括保存に失敗しました。通信が弱い場合は時間を置いて再試行してください。");
+      alert("一括保存に失敗しました。通信が弱い場合は時間を置いて再試行してください。\n解決しない場合は新郎にお問い合わせください。");
     } finally {
       setBulkBar();
     }
@@ -1391,7 +1391,7 @@ async function boot() {
   } catch (e) {
     console.error(e);
     forceHideOverlay();
-    alert("写真一覧の読み込みに失敗しました。\nlist url = " + jsonUrl());
+    alert("写真一覧の読み込みに失敗しました。ページを再読み込みしてください。\n解決しない場合は新郎にお問い合わせください。");
   }
 
   setBulkBar();
