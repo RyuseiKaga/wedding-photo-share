@@ -11,7 +11,7 @@ const LIKE_API = "https://wedding-like-api.karo2kai.workers.dev";
 const DELETED_PHOTOS_KEY = "wedding_deleted_v1";
 
 // 自動ポーリング間隔（新着写真を検知してサイレント更新）
-const POLL_INTERVAL_MS = 30_000;
+const POLL_INTERVAL_MS = 30000;
 
 // 体感ほぼ変えず軽く（保存用＝view を使う）
 const VIEW_TRANSFORM  = "c_limit,w_1600,q_auto:good,f_auto";
@@ -310,10 +310,43 @@ function updateEmptyState() {
 /* =========================
    ✅ 削除
 ========================= */
+/* =========================
+   ✅ 削除
+   - サーバー（LIKE_API/hidden）に削除リストを同期する
+   - Worker が /hidden に未対応の場合は localStorage のみで動作（フォールバック）
+========================= */
+
+/** サーバーから削除済みIDを取得してローカルとマージ */
+async function syncDeletedFromServer() {
+  try {
+    const res = await fetch(`${LIKE_API}/hidden`, { cache: "no-store" });
+    if (!res.ok) return; // Worker未対応の場合はスキップ
+    const data = await res.json();
+    const ids = Array.isArray(data?.ids) ? data.ids : [];
+    for (const id of ids) deletedPhotos.add(id);
+    saveDeletedPhotos(); // ローカルにも反映
+  } catch (e) {
+    // Worker未対応 or ネットワーク失敗 → ローカルのみで続行
+  }
+}
+
+/** 削除済みIDをサーバーに送信 */
+async function pushDeletedToServer(ids) {
+  try {
+    await fetch(`${LIKE_API}/hidden`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ids: Array.from(ids) }),
+    });
+  } catch (e) {
+    // Worker未対応 or ネットワーク失敗 → ローカル保存のみで続行
+  }
+}
+
 function saveDeletedPhotos() {
   try {
     localStorage.setItem(DELETED_PHOTOS_KEY, JSON.stringify(Array.from(deletedPhotos)));
-  } catch {}
+  } catch (e) {}
 }
 
 function deleteSelectedPhotos() {
@@ -321,8 +354,10 @@ function deleteSelectedPhotos() {
   if (n === 0) return;
   if (!confirm(`選択した ${n} 枚の写真をギャラリーから削除しますか？`)) return;
 
+  const newlyDeleted = new Set();
   for (const id of selected) {
     deletedPhotos.add(id);
+    newlyDeleted.add(id);
     const ui = uiById.get(id);
     if (ui?.card) ui.card.remove();
     uiById.delete(id);
@@ -339,6 +374,7 @@ function deleteSelectedPhotos() {
   }
 
   saveDeletedPhotos();
+  pushDeletedToServer(newlyDeleted); // サーバーにも送信（失敗してもローカルは保持）
   updateEmptyState();
   clearAllSelections();
 }
@@ -1003,6 +1039,9 @@ function resortByLikesAndRerender() {
 ========================= */
 async function loadList() {
   await withOverlay("読み込み中…", "いいねを取得して並び替えています", async () => {
+    // サーバーの削除リストとローカルをマージ（未対応Workerなら無視）
+    await syncDeletedFromServer();
+
     const res = await fetch(jsonUrl(), { cache: "no-store" });
 
     if (res.status === 404 || res.status === 403) {
