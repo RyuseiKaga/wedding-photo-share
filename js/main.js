@@ -1592,9 +1592,63 @@ async function pollForNewPhotos() {
 }
 
 /* =========================
+   Opening Intro Animation
+========================= */
+function showIntro() {
+  const overlay = document.getElementById("introOverlay");
+  if (!overlay) return;
+
+  // Generate floating particles
+  const container = document.getElementById("introParticles");
+  if (container) {
+    const colors = [
+      "rgba(255,214,120,.80)",
+      "rgba(255,255,255,.55)",
+      "rgba(180,220,200,.75)",
+      "rgba(255,160,200,.70)",
+      "rgba(255,235,150,.65)",
+    ];
+    for (let i = 0; i < 45; i++) {
+      const p = document.createElement("span");
+      const size = 2 + Math.random() * 5;
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      const isSquare = Math.random() > .55;
+      p.style.cssText = [
+        "position:absolute",
+        `width:${size}px`,
+        `height:${size}px`,
+        `border-radius:${isSquare ? "2px" : "50%"}`,
+        `background:${color}`,
+        `left:${Math.random() * 100}%`,
+        `top:${45 + Math.random() * 60}%`,
+        `animation:introParticleFloat ${2800 + Math.random() * 3500}ms ${Math.random() * 1800}ms linear infinite`,
+        "pointer-events:none",
+      ].join(";");
+      container.appendChild(p);
+    }
+  }
+
+  const dismiss = () => {
+    overlay.classList.add("intro-out");
+    setTimeout(() => overlay.remove(), 800);
+  };
+
+  // Auto-dismiss after 2.5s
+  const timer = setTimeout(dismiss, 2500);
+
+  // Tap / click to skip
+  overlay.addEventListener("click", () => {
+    clearTimeout(timer);
+    dismiss();
+  }, { once: true });
+}
+
+/* =========================
    Boot
 ========================= */
 async function boot() {
+  showIntro();
+
   hardCloseViewer();
   forceHideOverlay();
 
