@@ -721,24 +721,26 @@ function triggerTopSwapUltra(topId) {
   document.body.appendChild(flash);
   setTimeout(() => flash.remove(), 1800);
 
-  // 波紋リング（カード中心から3本）
-  const rect = card.getBoundingClientRect();
-  const cx = rect.left + rect.width / 2;
-  const cy = rect.top + rect.height / 2;
-  for (let r = 0; r < 3; r++) {
-    const ring = document.createElement("div");
-    ring.className = "top-ring";
-    ring.style.left = `${cx}px`;
-    ring.style.top  = `${cy}px`;
-    ring.style.animationDelay = `${r * 220}ms`;
-    ring.style.borderColor = [
-      "rgba(255,211,94,.85)",
-      "rgba(255,180,30,.70)",
-      "rgba(255,255,255,.60)",
-    ][r];
-    document.body.appendChild(ring);
-    setTimeout(() => ring.remove(), 1700 + r * 220);
-  }
+  // 波紋リング（カード中心から3本）— rAF でカード再配置後の位置を読む
+  requestAnimationFrame(() => {
+    const rect = card.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    for (let r = 0; r < 3; r++) {
+      const ring = document.createElement("div");
+      ring.className = "top-ring";
+      ring.style.left = `${cx}px`;
+      ring.style.top  = `${cy}px`;
+      ring.style.animationDelay = `${r * 220}ms`;
+      ring.style.borderColor = [
+        "rgba(255,211,94,.85)",
+        "rgba(255,180,30,.70)",
+        "rgba(255,255,255,.60)",
+      ][r];
+      document.body.appendChild(ring);
+      setTimeout(() => ring.remove(), 1700 + r * 220);
+    }
+  });
 
   // 紙吹雪（50枚・広範囲・長尺）
   const old = card.querySelector(".confetti");
