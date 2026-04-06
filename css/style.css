@@ -583,61 +583,110 @@ body.is-busy{
   --gold3: rgba(255, 170, 40, .65);
 }
 
-/* 1) カード自体：バウンス＋ゴールドグロー */
+/* 1) カード自体：バウンス＋ゴールドグロー（強化版） */
 @keyframes topUltraPop {
-  0%   { transform: scale(1); filter: none; }
-  18%  { transform: scale(1.035); filter: saturate(1.06) contrast(1.03); }
-  40%  { transform: scale(1.018); }
-  60%  { transform: scale(1.028); }
-  100% { transform: scale(1); filter: none; }
+  0%   { transform: scale(1) rotate(0deg); filter: none; }
+  10%  { transform: scale(1.12) rotate(-1deg); filter: saturate(1.4) brightness(1.12) contrast(1.06); }
+  22%  { transform: scale(1.06) rotate(.5deg); }
+  38%  { transform: scale(1.10) rotate(-.5deg); filter: saturate(1.2) brightness(1.06); }
+  55%  { transform: scale(1.04) rotate(0deg); }
+  72%  { transform: scale(1.07); }
+  100% { transform: scale(1) rotate(0deg); filter: none; }
 }
 
 @keyframes topUltraGlow {
   0%   { box-shadow: 0 22px 60px rgba(47,111,94,.20); }
-  35%  { box-shadow:
-          0 28px 90px rgba(47,111,94,.22),
-          0 0 0 6px rgba(255,211,94,.18),
-          0 0 0 14px rgba(255,211,94,.08); }
+  20%  { box-shadow:
+          0 0 0 8px  rgba(255,211,94,.40),
+          0 0 0 20px rgba(255,211,94,.18),
+          0 0 0 40px rgba(255,211,94,.08),
+          0 40px 120px rgba(255,180,30,.35); }
+  60%  { box-shadow:
+          0 0 0 5px  rgba(255,211,94,.25),
+          0 0 0 16px rgba(255,211,94,.10),
+          0 30px 90px rgba(47,111,94,.25); }
   100% { box-shadow: 0 22px 60px rgba(47,111,94,.20); }
 }
 
 .card--top.top-swap-ultra{
-  animation: topUltraPop 980ms cubic-bezier(.2,.95,.15,1),
-             topUltraGlow 980ms ease-out;
+  animation: topUltraPop 1600ms cubic-bezier(.2,.95,.15,1),
+             topUltraGlow 2200ms ease-out;
   position: relative;
-  overflow: hidden; /* confetti がはみ出さない */
+  overflow: hidden;
 }
 
-/* 2) シマー（キラッと横切る帯） */
+/* 2) シマー（2回走る） */
 @keyframes topUltraShimmer {
-  0%   { transform: translateX(-140%) rotate(12deg); opacity: 0; }
-  10%  { opacity: .95; }
-  55%  { opacity: .55; }
-  100% { transform: translateX(160%) rotate(12deg); opacity: 0; }
+  0%   { transform: translateX(-180%) rotate(12deg); opacity: 0; }
+  6%   { opacity: 1; }
+  38%  { transform: translateX(80%) rotate(12deg); opacity: .6; }
+  48%  { opacity: 0; transform: translateX(100%) rotate(12deg); }
+  52%  { transform: translateX(-80%) rotate(12deg); opacity: 0; }
+  58%  { opacity: .75; }
+  90%  { transform: translateX(200%) rotate(12deg); opacity: .4; }
+  100% { transform: translateX(220%) rotate(12deg); opacity: 0; }
 }
 .card--top.top-swap-ultra::after{
-  content:"";
+  content:””;
   position:absolute;
   inset:-35% -45%;
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(255,255,255,0) 35%,
-    rgba(255,255,255,.92) 50%,
-    rgba(255,255,255,0) 65%,
+    rgba(255,255,255,0) 30%,
+    rgba(255,255,255,.98) 50%,
+    rgba(255,255,255,0) 70%,
     transparent 100%
   );
   pointer-events:none;
   mix-blend-mode: screen;
-  animation: topUltraShimmer 900ms ease-out;
+  animation: topUltraShimmer 1800ms ease-in-out;
 }
 
-/* 3) 王冠バウンス（既存の ::before バッジを“ゴールド化＆跳ねる”） */
+/* 3) 王冠バウンス（より大きく跳ねる） */
 @keyframes crownBounce {
-  0%   { transform: translateY(0) scale(1); }
-  28%  { transform: translateY(-2px) scale(1.10); }
-  55%  { transform: translateY(0) scale(1.02); }
-  100% { transform: translateY(0) scale(1); }
+  0%   { transform: translateY(0) scale(1) rotate(0deg); }
+  15%  { transform: translateY(-8px) scale(1.25) rotate(-8deg); }
+  30%  { transform: translateY(2px) scale(.95) rotate(4deg); }
+  48%  { transform: translateY(-5px) scale(1.15) rotate(-4deg); }
+  65%  { transform: translateY(1px) scale(1) rotate(2deg); }
+  80%  { transform: translateY(-2px) scale(1.05) rotate(-1deg); }
+  100% { transform: translateY(0) scale(1) rotate(0deg); }
+}
+
+/* 全画面ゴールドフラッシュ */
+.top-flash-overlay{
+  position:fixed;
+  inset:0;
+  z-index:9997;
+  pointer-events:none;
+  background: radial-gradient(ellipse at center,
+    rgba(255,220,80,.55) 0%,
+    rgba(255,180,30,.25) 45%,
+    transparent 75%);
+  animation: topFlashAnim 1600ms ease-out forwards;
+}
+@keyframes topFlashAnim {
+  0%   { opacity:0; transform:scale(.7); }
+  10%  { opacity:1; transform:scale(1); }
+  100% { opacity:0; transform:scale(1.3); }
+}
+
+/* 波紋リング */
+.top-ring{
+  position:fixed;
+  transform:translate(-50%,-50%) scale(0);
+  width:200px;
+  height:200px;
+  border-radius:50%;
+  border:3px solid rgba(255,211,94,.85);
+  pointer-events:none;
+  z-index:9996;
+  animation:ringExpand 1400ms ease-out forwards;
+}
+@keyframes ringExpand{
+  0%  { transform:translate(-50%,-50%) scale(0); opacity:.95; }
+  100%{ transform:translate(-50%,-50%) scale(6); opacity:0; }
 }
 
 /* 既存TOPバッジをゴールド寄りに（普段も） */
@@ -654,16 +703,22 @@ body.is-busy{
   box-shadow: 0 14px 28px rgba(255,170,40,.24);
 }
 
-/* 4) 紙吹雪（軽量：疑似要素＋box-shadowで粒を量産） */
+/* 4) 紙吹雪 */
 @keyframes confettiFall {
-  0%   { transform: translateY(-14px) rotate(0deg); opacity: 0; }
-  10%  { opacity: .95; }
-  100% { transform: translateY(140px) rotate(220deg); opacity: 0; }
+  0%   { transform: translateY(-20px) rotate(0deg); opacity: 0; }
+  8%   { opacity: 1; }
+  100% { transform: translateY(260px) rotate(380deg); opacity: 0; }
 }
 @keyframes confettiFall2 {
-  0%   { transform: translateY(-18px) rotate(0deg); opacity: 0; }
-  12%  { opacity: .92; }
-  100% { transform: translateY(160px) rotate(-260deg); opacity: 0; }
+  0%   { transform: translateY(-24px) rotate(0deg); opacity: 0; }
+  10%  { opacity: .95; }
+  100% { transform: translateY(280px) rotate(-420deg); opacity: 0; }
+}
+@keyframes confettiFall3 {
+  0%   { transform: translateY(-16px) rotate(0deg) scaleX(1); opacity: 0; }
+  10%  { opacity: 1; }
+  50%  { transform: translateY(130px) rotate(180deg) scaleX(-1); opacity: .85; }
+  100% { transform: translateY(260px) rotate(360deg) scaleX(1); opacity: 0; }
 }
 
 /* confetti コンテナをカード内に生成する想定（JSで .confetti を挿入） */
@@ -684,12 +739,13 @@ body.is-busy{
   filter: drop-shadow(0 6px 10px rgba(0,0,0,.08));
 }
 
-/* 色は「自然×祝福」：ゴールド・セージ・白 */
+/* 色 */
 .confetti i.c1{ background: var(--gold2); }
-.confetti i.c2{ background: rgba(47,111,94,.78); }
-.confetti i.c3{ background: rgba(255,255,255,.92); }
-.confetti i.c4{ background: rgba(106,165,143,.85); }
-.confetti i.c5{ background: rgba(255,211,94,.72); }
+.confetti i.c2{ background: rgba(47,111,94,.85); }
+.confetti i.c3{ background: rgba(255,255,255,.95); }
+.confetti i.c4{ background: rgba(106,165,143,.90); }
+.confetti i.c5{ background: rgba(255,211,94,.85); }
+.confetti i.c6{ background: rgba(255,160,200,.90); }
 
 /* 5) きら星（小さい光点） */
 @keyframes sparkleBurst {
@@ -895,7 +951,9 @@ body.is-busy{
   .card.top-swap-ultra::before,
   .card.top-swap-ultra::after,
   .card.top-swap-ultra.card--top::before,
-  .confetti i{
+  .confetti i,
+  .top-flash-overlay,
+  .top-ring{
     animation: none !important;
   }
 }

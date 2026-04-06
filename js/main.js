@@ -638,32 +638,60 @@ function triggerTopSwapUltra(topId) {
   const card = ui?.card;
   if (!card) return;
 
+  // カードアニメ
   card.classList.remove("top-swap-ultra");
   void card.offsetWidth;
   card.classList.add("top-swap-ultra");
 
+  // 全画面ゴールドフラッシュ
+  const flash = document.createElement("div");
+  flash.className = "top-flash-overlay";
+  document.body.appendChild(flash);
+  setTimeout(() => flash.remove(), 1800);
+
+  // 波紋リング（カード中心から3本）
+  const rect = card.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  for (let r = 0; r < 3; r++) {
+    const ring = document.createElement("div");
+    ring.className = "top-ring";
+    ring.style.left = `${cx}px`;
+    ring.style.top  = `${cy}px`;
+    ring.style.animationDelay = `${r * 220}ms`;
+    ring.style.borderColor = [
+      "rgba(255,211,94,.85)",
+      "rgba(255,180,30,.70)",
+      "rgba(255,255,255,.60)",
+    ][r];
+    document.body.appendChild(ring);
+    setTimeout(() => ring.remove(), 1700 + r * 220);
+  }
+
+  // 紙吹雪（50枚・広範囲・長尺）
   const old = card.querySelector(".confetti");
   if (old) old.remove();
 
   const confetti = document.createElement("div");
   confetti.className = "confetti";
 
-  const N = 18;
+  const anims = ["confettiFall", "confettiFall2", "confettiFall3"];
+  const N = 50;
   for (let i = 0; i < N; i++) {
     const p = document.createElement("i");
-    p.className = ["c1","c2","c3","c4","c5"][i % 5];
+    p.className = ["c1","c2","c3","c4","c5","c6"][i % 6];
 
-    p.style.left = `${Math.random() * 100}%`;
+    p.style.left = `${-15 + Math.random() * 130}%`;
 
-    const w = 6 + Math.random() * 6;
-    const h = 8 + Math.random() * 10;
-    p.style.width = `${w}px`;
+    const w = 5 + Math.random() * 10;
+    const h = 7 + Math.random() * 14;
+    p.style.width  = `${w}px`;
     p.style.height = `${h}px`;
-    p.style.borderRadius = `${1 + Math.random() * 3}px`;
+    p.style.borderRadius = Math.random() > .45 ? "50%" : `${1 + Math.random() * 3}px`;
 
-    const dur = 750 + Math.random() * 650;
-    const delay = Math.random() * 120;
-    p.style.animation = `${(i % 2 === 0) ? "confettiFall" : "confettiFall2"} ${dur}ms ease-out ${delay}ms forwards`;
+    const dur   = 1400 + Math.random() * 1400;
+    const delay = Math.random() * 500;
+    p.style.animation = `${anims[i % 3]} ${dur}ms ease-out ${delay}ms forwards`;
 
     confetti.appendChild(p);
   }
@@ -674,7 +702,7 @@ function triggerTopSwapUltra(topId) {
     try { card.classList.remove("top-swap-ultra"); } catch {}
     const c = card.querySelector(".confetti");
     if (c) c.remove();
-  }, 1700);
+  }, 3200);
 }
 
 /* =========================
