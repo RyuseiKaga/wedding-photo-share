@@ -13,8 +13,10 @@ const DELETED_PHOTOS_KEY = "wedding_deleted_v1";
 // アップロード直後〜Cloudinaryリスト反映までの空白を埋めるキャッシュ
 const UPLOAD_CACHE_KEY = "wedding_upload_cache_v1";
 
-// 自動ポーリング間隔（新着写真を検知してサイレント更新）
-const POLL_INTERVAL_MS = 5000;
+// いいね数ポーリング間隔（5秒）
+const LIKES_POLL_MS = 5000;
+// 新着写真チェック間隔（30秒）
+const PHOTOS_POLL_MS = 30000;
 
 // 体感ほぼ変えず軽く（保存用＝view を使う）
 const VIEW_TRANSFORM  = "c_limit,w_1600,q_auto:good,f_auto";
@@ -1417,8 +1419,23 @@ function bindEvents() {
 /* =========================
    自動ポーリング（新着写真をサイレント検知・更新）
 ========================= */
+// いいね数だけ更新（Cloudinaryと独立・5秒ごと）
+async function pollLikes() {
+  if ($overlay && !$overlay.hidden) return;
+  if (selected.size > 0) return;
+  if (!allPhotos.length) return;
+
+  try {
+    const ids = allPhotos.map(p => p.id);
+    const batches = chunk(ids, LIKES_BATCH_SIZE);
+    for (const batch of batches) await fetchLikesBatch(batch);
+    for (const p of allPhotos) updateLikeUI(p.id, likes.get(p.id) ?? 0);
+    resortByLikesAndRerender();
+  } catch {}
+}
+
+// 新着写真チェック（Cloudinary・30秒ごと）
 async function pollForNewPhotos() {
-  // アップロード中・写真選択中はスキップ（操作を妨げない）
   if ($overlay && !$overlay.hidden) return;
   if (selected.size > 0) return;
 
@@ -1434,16 +1451,7 @@ async function pollForNewPhotos() {
 
     // 既存にない・削除済みでもない写真があるか確認
     const hasNew = resources.some(r => !currentIds.has(r.public_id) && !deletedPhotos.has(r.public_id));
-
-    if (!hasNew) {
-      // 新写真なし → 既存写真のいいね数を更新してUI反映＋リソート
-      const ids = allPhotos.map(p => p.id);
-      const batches = chunk(ids, LIKES_BATCH_SIZE);
-      for (const batch of batches) await fetchLikesBatch(batch);
-      for (const p of allPhotos) updateLikeUI(p.id, likes.get(p.id) ?? 0);
-      resortByLikesAndRerender();
-      return;
-    }
+    if (!hasNew) return;
 
     // 新しい写真のいいね数だけ取得（既存は保持）
     resources.sort((a, b) => (b.version || 0) - (a.version || 0));
@@ -1506,7 +1514,8 @@ async function boot() {
   setBulkBar();
 
   // 初回ロード後に自動ポーリング開始
-  setInterval(pollForNewPhotos, POLL_INTERVAL_MS);
+  setInterval(pollLikes, LIKES_POLL_MS);          // いいね数: 5秒ごと
+  setInterval(pollForNewPhotos, PHOTOS_POLL_MS);  // 新着写真: 30秒ごと
 }
 
 boot();
