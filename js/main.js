@@ -1253,11 +1253,15 @@ async function uploadFiles(files) {
   if (!files || files.length === 0) return;
 
   await withOverlay("アップロード中…", "しばらくお待ちください", async () => {
-    const uploaded = [];
-    for (let i = 0; i < files.length; i++) {
-      updateOverlay(`${i + 1} / ${files.length}`);
+    const total     = files.length;
+    const uploaded  = new Array(total).fill(null);
+    let   completed = 0;
 
-      const file = files[i];
+    updateOverlay(`0 / ${total}`);
+
+    // 最大3枚同時アップロード
+    const CONCURRENCY = 3;
+    const tasks = Array.from(files).map((file, i) => async () => {
       const fd = new FormData();
       fd.append("file", file);
       fd.append("upload_preset", UPLOAD_PRESET);
@@ -1274,8 +1278,17 @@ async function uploadFiles(files) {
       }
 
       const data = await up.json();
-      uploaded.push({ public_id: data.public_id, version: data.version, format: data.format || "jpg" });
-    }
+      uploaded[i] = { public_id: data.public_id, version: data.version, format: data.format || "jpg" };
+      completed++;
+      updateOverlay(`${completed} / ${total}`);
+    });
+
+    // 並列実行（CONCURRENCY枚ずつ）
+    const queue = tasks.slice();
+    const workers = Array.from({ length: Math.min(CONCURRENCY, total) }, async () => {
+      while (queue.length) await queue.shift()();
+    });
+    await Promise.all(workers);
 
     const newPhotos = uploaded.map(meta => {
       const m = { public_id: meta.public_id, version: meta.version, format: meta.format };
