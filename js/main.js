@@ -8,6 +8,32 @@ const UPLOAD_FOLDER = "";
 
 const LIKE_API = "https://wedding-like-api.karo2kai.workers.dev";
 
+// 結婚式終了時刻（JST）。この時刻を過ぎると特別モードへ
+const WEDDING_END = new Date("2026-04-11T21:30:00+09:00");
+function isPostWedding() { return Date.now() >= WEDDING_END.getTime(); }
+
+// 結婚式で流した曲リスト（Spotifyプレイリスト: 4/11 結婚式）
+const WEDDING_TRACKS = [
+  { id:"16z37gv2vAQF1mYLXY6NHr", name:"おさんぽクンクン",      artist:"Daisuke Yokoyama, Takumi Mitani", art:"https://i.scdn.co/image/ab67616d00001e028bed33a04132160cffcaa9c6" },
+  { id:"068D6ROpy0TVujBDPKntVy", name:"4645",                 artist:"RADWIMPS",                        art:"https://i.scdn.co/image/ab67616d00001e02f84ccff21745688370ce77ec" },
+  { id:"5oA6WuNqODuCtRF3YCSoka", name:"最大公約数",             artist:"SEKAI NO OWARI",                   art:"https://i.scdn.co/image/ab67616d00001e02ff5245568d6d4576a0f7dcdf" },
+  { id:"3VfcTMAgdty9VYOgeuyqiN", name:"CHEERS",               artist:"Mrs. GREEN APPLE",                art:"https://i.scdn.co/image/ab67616d00001e0281f55cd879e9480e3ed313df" },
+  { id:"1huEH8RmhiCGB6M0iPYq6v", name:"ソラシド",              artist:"GReeeeN",                         art:"https://i.scdn.co/image/ab67616d00001e026c3cd8f09d0e713dffc5e27b" },
+  { id:"738jPe2gzSeNay3MouWSqO", name:"チーズケーキ・ファクトリー", artist:"ELLEGARDEN",                      art:"https://i.scdn.co/image/ab67616d00001e026c795df60a32c2e9448a0cd9" },
+  { id:"33o5B8veTEuqEzkcJrWnN2", name:"TWILIGHT",             artist:"RADWIMPS",                        art:"https://i.scdn.co/image/ab67616d00001e02da5ad52eaad222720afcd788" },
+  { id:"60MIUYWw2md2IlCQowA6sv", name:"'I' Novel",            artist:"RADWIMPS",                        art:"https://i.scdn.co/image/ab67616d00001e021b70a19a834b7f15d33fe523" },
+  { id:"699ku1Ebqi9pwi0IwnRPET", name:"サイハテアイニ",          artist:"RADWIMPS",                        art:"https://i.scdn.co/image/ab67616d00001e023586e02986ded6e995a87cec" },
+  { id:"4lqJviq0yaeYIcXkF6Br7F", name:"マジで感謝！",           artist:"T-Pistonz+KMC",                   art:"https://i.scdn.co/image/ab67616d00001e025ef149dc26fb1955fb633014" },
+  { id:"7LwJEwrjYWX1uXzI8oIuZR", name:"春風",                 artist:"3rd Sunday",                      art:"https://i.scdn.co/image/ab67616d00001e024538fb7e0425284c2f41d13f" },
+  { id:"4UaWhczMjTpTaZvjgYfjCE", name:"shed light on",        artist:"3rd Sunday",                      art:"https://i.scdn.co/image/ab67616d00001e024538fb7e0425284c2f41d13f" },
+  { id:"26nwwSSmrHobQ5vi5kIxgU", name:"Twilight",             artist:"3rd Sunday",                      art:"https://i.scdn.co/image/ab67616d00001e024538fb7e0425284c2f41d13f" },
+  { id:"3XE1VB9SMnkOoj4f9s9MWk", name:"Awkward",              artist:"3rd Sunday",                      art:"https://i.scdn.co/image/ab67616d00001e024538fb7e0425284c2f41d13f" },
+  { id:"3cBpJn5WWYj0SMix7VSevV", name:"週末グルーミー",          artist:"Saucy Dog",                       art:"https://i.scdn.co/image/ab67616d00001e0211bc128805fe58b82c59e76e" },
+  { id:"7BBhAZPkDnJ6mYVua3O1F4", name:"いいんですか?",           artist:"RADWIMPS",                        art:"https://i.scdn.co/image/ab67616d00001e02a2f4114eb1e98cafef5a3f3d" },
+  { id:"1v7bzIjGsqshSjRG3Fe2CB", name:"トレモロ",              artist:"RADWIMPS",                        art:"https://i.scdn.co/image/ab67616d00001e02f84ccff21745688370ce77ec" },
+  { id:"5NAtMtiyKLZFNDFHAtDrXj", name:"ラストバージン",          artist:"RADWIMPS",                        art:"https://i.scdn.co/image/ab67616d00001e024490022d0f425aace1c49d83" },
+];
+
 const DELETED_PHOTOS_KEY = "wedding_deleted_v1";
 
 // アップロード直後〜Cloudinaryリスト反映までの空白を埋めるキャッシュ
@@ -1494,6 +1520,9 @@ function bindEvents() {
   $viewerClose?.addEventListener("click", hardCloseViewer);
   $viewerBackdrop?.addEventListener("click", hardCloseViewer);
 
+  document.getElementById("summaryClose")?.addEventListener("click", closeSummary);
+  document.getElementById("summaryBackdrop")?.addEventListener("click", closeSummary);
+
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && $viewer && !$viewer.hidden) hardCloseViewer();
   });
@@ -1592,19 +1621,136 @@ async function pollForNewPhotos() {
 }
 
 /* =========================
+   Post-wedding UI
+========================= */
+function initPostWeddingUI() {
+  if (!isPostWedding()) return;
+
+  // サマリーボタンを表示
+  const btn = document.getElementById("summaryBtn");
+  if (btn) {
+    btn.hidden = false;
+    btn.addEventListener("click", showSummary);
+  }
+}
+
+function showSummary() {
+  const modal = document.getElementById("summaryModal");
+  if (!modal) return;
+
+  // Top 5 写真を構築
+  const photosEl = document.getElementById("smryPhotos");
+  if (photosEl && photosEl.children.length === 0) {
+    const top5 = [...allPhotos]
+      .sort((a, b) => (likes.get(b.id) || 0) - (likes.get(a.id) || 0))
+      .slice(0, 5);
+
+    top5.forEach((photo, i) => {
+      const div = document.createElement("div");
+      div.className = "smry-photo";
+      const likeCount = likes.get(photo.id) || 0;
+
+      const img = document.createElement("img");
+      img.className = "smry-photo-img";
+      img.src = photo.thumb;
+      img.alt = "";
+      img.loading = "lazy";
+
+      const rank = document.createElement("div");
+      rank.className = "smry-photo-rank";
+      rank.textContent = String(i + 1);
+
+      div.appendChild(img);
+      div.appendChild(rank);
+
+      if (likeCount > 0) {
+        const lk = document.createElement("div");
+        lk.className = "smry-photo-likes";
+        lk.textContent = `♡ ${likeCount}`;
+        div.appendChild(lk);
+      }
+
+      div.addEventListener("click", () => {
+        closeSummary();
+        openViewer(photo);
+      });
+      photosEl.appendChild(div);
+    });
+  }
+
+  // 曲リストを構築（初回のみ）
+  const tracksEl = document.getElementById("smryTracks");
+  if (tracksEl && tracksEl.children.length === 0) {
+    WEDDING_TRACKS.forEach(t => {
+      const div = document.createElement("div");
+      div.className = "smry-track";
+
+      const art = document.createElement("img");
+      art.className = "smry-track-art";
+      art.src = t.art;
+      art.alt = t.name;
+      art.loading = "lazy";
+
+      const info = document.createElement("div");
+      info.className = "smry-track-info";
+      info.innerHTML = `
+        <div class="smry-track-name">${t.name}</div>
+        <div class="smry-track-artist">${t.artist}</div>`;
+
+      const link = document.createElement("a");
+      link.className = "smry-track-open";
+      link.href = `https://open.spotify.com/track/${t.id}`;
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.setAttribute("aria-label", `${t.name}をSpotifyで聴く`);
+      link.innerHTML = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" width="18" height="18" aria-hidden="true"><path fill="#1DB954" d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>`;
+
+      div.appendChild(art);
+      div.appendChild(info);
+      div.appendChild(link);
+      tracksEl.appendChild(div);
+    });
+  }
+
+  modal.hidden = false;
+  document.body.classList.add("is-busy");
+}
+
+function closeSummary() {
+  const modal = document.getElementById("summaryModal");
+  if (!modal || modal.hidden) return;
+  modal.classList.add("smry-out");
+  setTimeout(() => {
+    modal.hidden = true;
+    modal.classList.remove("smry-out");
+    document.body.classList.remove("is-busy");
+  }, 420);
+}
+
+/* =========================
    Opening Intro Animation
 ========================= */
 function showIntro() {
   const overlay = document.getElementById("introOverlay");
   if (!overlay) return;
 
+  const post = isPostWedding();
+
+  if (post) {
+    overlay.classList.add("intro-post");
+    const titleEl = overlay.querySelector(".intro-title");
+    const subEl   = overlay.querySelector(".intro-sub");
+    if (titleEl) titleEl.textContent = "ありがとう";
+    if (subEl)   subEl.textContent   = "今日は来てくれてありがとうございました";
+  }
+
   const dismiss = () => {
     overlay.classList.add("intro-out");
     setTimeout(() => overlay.remove(), 800);
   };
 
-  // Auto-dismiss after 2.6s
-  const timer = setTimeout(dismiss, 2600);
+  // Post-wedding は少し長め、通常は 3.8s
+  const timer = setTimeout(dismiss, post ? 4800 : 3800);
 
   // Tap / click to skip
   overlay.addEventListener("click", () => {
@@ -1624,6 +1770,7 @@ async function boot() {
 
   bindEvents();
   bindLifecycleGuards();
+  initPostWeddingUI();
 
   try {
     await loadList();
