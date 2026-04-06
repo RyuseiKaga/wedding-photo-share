@@ -317,6 +317,15 @@ function deleteSelectedPhotos() {
   }
 
   allPhotos = allPhotos.filter(p => !deletedPhotos.has(p.id));
+
+  // Bug fix: renderIndex を実際のDOM枚数に合わせる（スキップ防止）
+  renderIndex = uiById.size;
+
+  // Bug fix: 削除された写真が1位だった場合に lastTopId を更新
+  if (deletedPhotos.has(lastTopId)) {
+    lastTopId = allPhotos[0]?.id || null;
+  }
+
   saveDeletedPhotos();
   clearAllSelections();
 }
@@ -513,11 +522,12 @@ async function postLike(id) {
 
     if (res.ok) {
       const data = await res.json();
+      // Bug fix: || チェーンは 0（falsy）を無視するため三項演算子で抽出
       const serverCount =
-        (typeof data?.likes === "number" && data.likes) ||
-        (typeof data?.count === "number" && data.count) ||
-        (typeof data?.value === "number" && data.value) ||
-        (typeof data === "number" && data);
+        typeof data?.likes  === "number" ? data.likes  :
+        typeof data?.count  === "number" ? data.count  :
+        typeof data?.value  === "number" ? data.value  :
+        typeof data         === "number" ? data         : null;
 
       if (typeof serverCount === "number") {
         likes.set(id, serverCount);
