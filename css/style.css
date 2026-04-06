@@ -1261,72 +1261,6 @@ body::after{
 }
 
 /* =========================
-   Podium (Top 3)
-========================= */
-.podium-section {
-  padding: 0 12px 16px;
-}
-.podium-label {
-  text-align: center;
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: .06em;
-  color: var(--muted);
-  margin-bottom: 10px;
-}
-.podium-row {
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-  align-items: flex-end;
-}
-.podium-card {
-  flex: 1;
-  max-width: 140px;
-  border-radius: 14px;
-  overflow: hidden;
-  background: #fff;
-  box-shadow: 0 4px 16px rgba(0,0,0,.10);
-  cursor: pointer;
-  position: relative;
-  transition: transform .18s;
-}
-.podium-card:active { transform: scale(.96); }
-.podium-card.rank-1 {
-  box-shadow:
-    0 0 0 2.5px rgba(255,211,60,.90),
-    0 0 0 6px  rgba(255,211,60,.22),
-    0 8px 28px rgba(255,180,20,.28);
-  transform: scale(1.04);
-  z-index: 2;
-}
-.podium-card.rank-1:active { transform: scale(1.00); }
-.podium-thumb {
-  width: 100%;
-  aspect-ratio: 1/1;
-  object-fit: cover;
-  display: block;
-}
-.podium-medal {
-  position: absolute;
-  top: 6px;
-  left: 6px;
-  font-size: 22px;
-  filter: drop-shadow(0 1px 3px rgba(0,0,0,.35));
-  line-height: 1;
-}
-.podium-likes {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 13px;
-  font-weight: 900;
-  color: #e05;
-  padding: 5px 8px 6px;
-}
-.podium-likes::before { content: "❤"; font-size: 12px; }
-
-/* =========================
    NEW badge
 ========================= */
 .badge-new {
@@ -1344,19 +1278,3 @@ body::after{
   box-shadow: 0 2px 6px rgba(255,62,108,.40);
 }
 
-/* =========================
-   Like Heart Float (TikTok style)
-========================= */
-@keyframes heartFloat {
-  0%   { transform: translateY(0)    scale(0) rotate(var(--rot)); opacity: 1; }
-  20%  { transform: translateY(-20px) scale(1.2) rotate(var(--rot)); opacity: 1; }
-  80%  { transform: translateY(-90px) scale(1)  rotate(var(--rot)); opacity: .7; }
-  100% { transform: translateY(-120px) scale(.8) rotate(var(--rot)); opacity: 0; }
-}
-.like-heart-float {
-  position: fixed;
-  pointer-events: none;
-  font-size: 22px;
-  z-index: 9999;
-  animation: heartFloat var(--dur) ease-out var(--delay) forwards;
-}

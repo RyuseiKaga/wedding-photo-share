@@ -63,7 +63,6 @@ const $viewerImg = document.getElementById("viewerImg");
 const $viewerLoading = document.getElementById("viewerLoading");
 const $viewerOpen = document.getElementById("viewerOpen");
 const $viewerCopy   = document.getElementById("viewerCopy");
-const $podium       = document.getElementById("podium");
 const $photoCount   = document.getElementById("photoCount");
 const $sortToggle   = document.getElementById("sortToggle");
 
@@ -421,7 +420,6 @@ function deleteSelectedPhotos() {
   saveDeletedPhotos();
   pushDeletedToServer(newlyDeleted); // サーバーにも送信（失敗してもローカルは保持）
   updateEmptyState();
-  updatePodium();
   updatePhotoCount();
   clearAllSelections();
 }
@@ -1059,7 +1057,6 @@ function buildPhotoCard(photo, isTop = false) {
     e.preventDefault();
     e.stopPropagation();
     postLike(photo.id);
-    spawnLikeHearts(likeBtn);
   });
 
   const countEl = likeBtn.querySelector(".like-count");
@@ -1166,7 +1163,6 @@ function updateTopClass(prevTop, nextTop) {
 function resortByLikesAndRerender() {
   const prevTop = lastTopId;
 
-  // sortMode に応じて並び替え
   if (sortMode === "time") {
     allPhotos.sort((a, b) => (b.version || 0) - (a.version || 0));
   } else {
@@ -1179,11 +1175,9 @@ function resortByLikesAndRerender() {
   reorderRenderedCardsInPlace();
   updateTopClass(prevTop, nextTop);
   setBulkBar();
-  updatePodium();
   updatePhotoCount();
   updateNewBadges();
 
-  // 時系列モード中は演出スキップ
   if (sortMode === "likes" && prevTop && nextTop && prevTop !== nextTop) {
     setPendingEffect(PENDING_TOP_SWAP_KEY, { id: nextTop });
     requestAnimationFrame(() => triggerTopSwapUltra(nextTop));
@@ -1195,94 +1189,6 @@ function resortByLikesAndRerender() {
 /* =========================
    Load List
 ========================= */
-/* =========================
-   ① Podium (Top 3)
-========================= */
-function updatePodium() {
-  if (!$podium) return;
-  // 時系列モードでは表彰台非表示
-  if (sortMode === "time") { $podium.hidden = true; return; }
-
-  // いいね数1以上の写真を上位3枚取得
-  const top = allPhotos
-    .filter(p => (likes.get(p.id) || 0) >= 1)
-    .slice(0, 3);
-
-  if (top.length < 2) { $podium.hidden = true; return; }
-
-  $podium.hidden = false;
-  $podium.innerHTML = "";
-
-  const label = document.createElement("p");
-  label.className = "podium-label";
-  label.textContent = "🏆 ランキング";
-  $podium.appendChild(label);
-
-  const row = document.createElement("div");
-  row.className = "podium-row";
-
-  const medals = ["🥇","🥈","🥉"];
-  const ranks  = top.length === 2 ? [0, 1] : [1, 0, 2]; // 2位・1位・3位の表示順（視覚的に1位が中央）
-
-  ranks.forEach(i => {
-    if (!top[i]) return;
-    const p = top[i];
-    const card = document.createElement("div");
-    card.className = `podium-card rank-${i + 1}`;
-    card.addEventListener("click", () => openViewer(p));
-
-    const img = document.createElement("img");
-    img.className = "podium-thumb";
-    img.src = p.thumb;
-    img.alt = `${i + 1}位`;
-    img.loading = "lazy";
-
-    const medal = document.createElement("span");
-    medal.className = "podium-medal";
-    medal.textContent = medals[i];
-
-    const likesEl = document.createElement("div");
-    likesEl.className = "podium-likes";
-    likesEl.textContent = likes.get(p.id) || 0;
-    likesEl.dataset.podiumId = p.id;
-
-    card.appendChild(img);
-    card.appendChild(medal);
-    card.appendChild(likesEl);
-    row.appendChild(card);
-  });
-
-  $podium.appendChild(row);
-}
-
-/* =========================
-   ② Like Heart Float
-========================= */
-function spawnLikeHearts(btn) {
-  const rect = btn.getBoundingClientRect();
-  const cx   = rect.left + rect.width  / 2;
-  const cy   = rect.top  + rect.height / 2;
-  const emojis = ["❤️","💕","💗","💓","💖"];
-  const count  = 3 + Math.floor(Math.random() * 3); // 3〜5個
-
-  for (let i = 0; i < count; i++) {
-    const el = document.createElement("span");
-    el.className = "like-heart-float";
-    el.textContent = emojis[Math.floor(Math.random() * emojis.length)];
-    const offsetX = (Math.random() - 0.5) * 40;
-    const rot     = (Math.random() - 0.5) * 30;
-    const dur     = 800 + Math.random() * 600;
-    const delay   = Math.random() * 200;
-    el.style.setProperty("--rot",   `${rot}deg`);
-    el.style.setProperty("--dur",   `${dur}ms`);
-    el.style.setProperty("--delay", `${delay}ms`);
-    el.style.left = `${cx + offsetX - 11}px`;
-    el.style.top  = `${cy}px`;
-    document.body.appendChild(el);
-    setTimeout(() => el.remove(), dur + delay + 50);
-  }
-}
-
 /* =========================
    ③ NEW Badge update
 ========================= */
@@ -1336,8 +1242,8 @@ if ($sortToggle) {
     renderNextChunk();
     setupInfiniteScroll();
     updateEmptyState();
-    updatePodium();
     updatePhotoCount();
+    updateNewBadges();
   });
 }
 
@@ -1409,7 +1315,6 @@ async function loadList() {
     renderNextChunk();
     setupInfiniteScroll();
     updateEmptyState();
-    updatePodium();
     updatePhotoCount();
     updateNewBadges();
 
@@ -1486,7 +1391,6 @@ async function uploadFiles(files) {
     renderNextChunk();
     setupInfiniteScroll();
     updateEmptyState();
-    updatePodium();
     updatePhotoCount();
     updateNewBadges();
 
@@ -1673,7 +1577,6 @@ async function pollForNewPhotos() {
     renderNextChunk();
     setupInfiniteScroll();
     updateEmptyState();
-    updatePodium();
     updatePhotoCount();
     updateNewBadges();
 
