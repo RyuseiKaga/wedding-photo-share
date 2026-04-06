@@ -1736,9 +1736,10 @@ body::after{
 }
 .smry-track-links{
   display: flex;
-  flex-direction: column;
-  gap: 5px;
+  flex-direction: row;
+  gap: 6px;
   flex-shrink: 0;
+  align-items: center;
 }
 .smry-track-open{
   display: flex;
