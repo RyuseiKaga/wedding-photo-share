@@ -1156,7 +1156,8 @@ function updateTopClass(prevTop, nextTop) {
   }
   if (nextTop) {
     const nextEl = uiById.get(nextTop)?.card;
-    if (nextEl) nextEl.classList.add("card--top");
+    // 時系列モードではTOPバッジを付けない
+    if (nextEl) nextEl.classList.toggle("card--top", sortMode === "likes");
   }
 }
 
@@ -1229,6 +1230,10 @@ if ($sortToggle) {
     sortMode = sortMode === "likes" ? "time" : "likes";
     $sortToggle.textContent = sortMode === "likes" ? "🕐 時系列で見る" : "❤️ いいね順で見る";
     $sortToggle.classList.toggle("active", sortMode === "time");
+    // 時系列に切り替えた時は既存のTOPバッジを除去
+    if (sortMode === "time") {
+      document.querySelectorAll(".card--top").forEach(el => el.classList.remove("card--top"));
+    }
 
     // ギャラリーを再描画
     allPhotos.sort(sortMode === "time"
