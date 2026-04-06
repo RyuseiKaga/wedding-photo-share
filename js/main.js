@@ -1436,10 +1436,11 @@ async function pollForNewPhotos() {
     const hasNew = resources.some(r => !currentIds.has(r.public_id) && !deletedPhotos.has(r.public_id));
 
     if (!hasNew) {
-      // 新写真なし → 既存写真のいいね数だけ更新してリソート
+      // 新写真なし → 既存写真のいいね数を更新してUI反映＋リソート
       const ids = allPhotos.map(p => p.id);
       const batches = chunk(ids, LIKES_BATCH_SIZE);
       for (const batch of batches) await fetchLikesBatch(batch);
+      for (const p of allPhotos) updateLikeUI(p.id, likes.get(p.id) ?? 0);
       resortByLikesAndRerender();
       return;
     }
