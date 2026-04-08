@@ -203,6 +203,26 @@ function isLikelyTouchDevice() {
   return ("ontouchstart" in window) || (navigator.maxTouchPoints > 0);
 }
 
+function isAndroid() {
+  return /android/i.test(navigator.userAgent);
+}
+
+// Android 用: プリフェッチ済み File Blob を <a download> でダウンロード
+async function downloadBlobFiles(files) {
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    const url = URL.createObjectURL(file);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = file.name || `wedding_photo_${i + 1}.jpg`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    await sleep(600); // ブラウザの保存ダイアログが被らないよう間隔を空ける
+    URL.revokeObjectURL(url);
+  }
+}
+
 function chunk(arr, size) {
   const out = [];
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
@@ -1474,6 +1494,14 @@ async function bulkSaveSelected() {
     return;
   }
 
+  // Android: blob URL 経由でダウンロードフォルダに保存
+  if (isAndroid()) {
+    await downloadBlobFiles(files);
+    clearAllSelections();
+    return;
+  }
+
+  // その他の端末: タブで開いて長押し保存を案内
   if (isLikelyTouchDevice()) {
     alert("共有で一括保存できない端末でした。代わりにタブで画像を開きます。\n各画像を長押しして「写真に追加/画像を保存」してください。");
   }
