@@ -124,6 +124,10 @@ let lastTopId = null;
 // ソートモード: "likes" | "time"
 let sortMode = "likes";
 
+// ポーリング二重実行防止フラグ
+let pollLikesRunning = false;
+let pollNewPhotosRunning = false;
+
 // ✅ リロード/再描画で演出が消える対策（“発火予約”）
 const PENDING_LIKE_GLOW_KEY = "wedding_pending_like_glow_v1";
 const PENDING_TOP_SWAP_KEY  = "wedding_pending_top_swap_v1";
@@ -1499,6 +1503,7 @@ async function bulkSaveSelected() {
   // Android: blob URL 経由でダウンロードフォルダに保存
   if (isAndroid()) {
     await downloadBlobFiles(files);
+    alert(`${files.length} 枚の写真をダウンロードしました。通知バーまたはギャラリーアプリからご確認ください。`);
     clearAllSelections();
     return;
   }
@@ -1557,7 +1562,10 @@ function bindEvents() {
   document.getElementById("summaryBackdrop")?.addEventListener("click", closeSummary);
 
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && $viewer && !$viewer.hidden) hardCloseViewer();
+    if (e.key !== "Escape") return;
+    const summaryModal = document.getElementById("summaryModal");
+    if (summaryModal && !summaryModal.hidden) { closeSummary(); return; }
+    if ($viewer && !$viewer.hidden) hardCloseViewer();
   });
 
   $viewerCopy?.addEventListener("click", async () => {
@@ -1579,23 +1587,31 @@ function bindEvents() {
 ========================= */
 // いいね数だけ更新（Cloudinaryと独立・5秒ごと）
 async function pollLikes() {
+  if (pollLikesRunning) return;
   if ($overlay && !$overlay.hidden) return;
   if (selected.size > 0) return;
   if (!allPhotos.length) return;
 
+  pollLikesRunning = true;
   try {
     const ids = allPhotos.map(p => p.id);
     const batches = chunk(ids, LIKES_BATCH_SIZE);
     for (const batch of batches) await fetchLikesBatch(batch);
     for (const p of allPhotos) updateLikeUI(p.id, likes.get(p.id) ?? 0);
     resortByLikesAndRerender();
-  } catch {}
+  } catch {} finally {
+    pollLikesRunning = false;
+  }
 }
 
 // 新着写真チェック（Cloudinary・30秒ごと）
 async function pollForNewPhotos() {
+  if (pollNewPhotosRunning) return;
   if ($overlay && !$overlay.hidden) return;
+  if ($viewer && !$viewer.hidden) return; // ビューワー表示中は再描画しない
   if (selected.size > 0) return;
+
+  pollNewPhotosRunning = true;
 
   try {
     const res = await fetch(jsonUrl(), { cache: "no-store" });
@@ -1650,6 +1666,8 @@ async function pollForNewPhotos() {
     applyPendingEffectsAfterRender();
   } catch {
     // サイレントに失敗（ユーザーへの通知なし）
+  } finally {
+    pollNewPhotosRunning = false;
   }
 }
 
