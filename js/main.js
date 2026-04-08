@@ -90,8 +90,6 @@ const $viewerBackdrop = $viewer?.querySelector(".viewer-backdrop");
 const $viewerClose = document.getElementById("viewerClose");
 const $viewerImg = document.getElementById("viewerImg");
 const $viewerLoading = document.getElementById("viewerLoading");
-const $viewerOpen = document.getElementById("viewerOpen");
-const $viewerCopy   = document.getElementById("viewerCopy");
 const $photoCount   = document.getElementById("photoCount");
 const $sortToggle   = document.getElementById("sortToggle");
 
@@ -545,9 +543,6 @@ async function openViewer(photo) {
 
   if ($viewerLoading) $viewerLoading.hidden = false;
   if ($viewerImg) $viewerImg.removeAttribute("src");
-
-  if ($viewerOpen) $viewerOpen.href = photo.original;
-  if ($viewerCopy) $viewerCopy.dataset.url = photo.original;
 
   const token = ++viewerLoadToken;
   const hiUrl = photo.view;
@@ -1568,18 +1563,6 @@ function bindEvents() {
     if ($viewer && !$viewer.hidden) hardCloseViewer();
   });
 
-  $viewerCopy?.addEventListener("click", async () => {
-    const url = $viewerCopy.dataset.url || "";
-    if (!url) return;
-    try {
-      await navigator.clipboard.writeText(url);
-      $viewerCopy.textContent = "コピーしました";
-      await sleep(800);
-      $viewerCopy.textContent = "URLコピー";
-    } catch {
-      prompt("コピーしてね", url);
-    }
-  });
 }
 
 /* =========================
