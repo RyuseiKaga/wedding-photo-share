@@ -995,7 +995,9 @@ async function shareFilesIfPossible(files) {
     });
     return true;
   } catch (e) {
-    console.warn("share canceled/failed:", e);
+    // ユーザーがキャンセルした場合はフォールバックを実行しない
+    if (e?.name === "AbortError") return true;
+    console.warn("share failed:", e);
     return false;
   }
 }
