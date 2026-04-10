@@ -764,6 +764,7 @@ function triggerTopSwapUltra(topId) {
 
   // ビクトリーモーダル（写真を画面中央に大きく表示）
   const topPhoto = ui?.photo;
+  if (!topPhoto) return;
   showVictoryOverlay(topPhoto);
 
   // カードアニメ
@@ -1761,6 +1762,7 @@ function showSummary() {
   }
 
   modal.hidden = false;
+  modal.style.display = "";
   document.body.classList.add("is-busy");
 
   // 写真の入場アニメーション（開くたびに再生）
@@ -1795,6 +1797,7 @@ function closeSummary() {
   modal.classList.add("smry-out");
   setTimeout(() => {
     modal.hidden = true;
+    modal.style.display = "none";
     modal.classList.remove("smry-out");
     document.body.classList.remove("is-busy");
   }, 420);
