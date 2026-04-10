@@ -1814,8 +1814,8 @@ function showIntro() {
     overlay.classList.add("intro-post");
     const titleEl = overlay.querySelector(".intro-title");
     const subEl   = overlay.querySelector(".intro-sub");
-    if (titleEl) titleEl.textContent = "ありがとう";
-    if (subEl)   subEl.textContent   = "今日は来てくれてありがとうございました";
+    if (titleEl) titleEl.textContent = "一生の思い出ができました";
+    if (subEl)   subEl.textContent   = "今日は来てくれてありがとう！";
   }
 
   return new Promise(resolve => {
