@@ -1687,9 +1687,7 @@ function showSummary() {
 
       const img = document.createElement("img");
       img.className = "smry-photo-img";
-      img.src = photo.thumb;
-      img.alt = "";
-      img.loading = "lazy";
+      img.src = photo.view;
 
       const rank = document.createElement("div");
       rank.className = "smry-photo-rank";
